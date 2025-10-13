@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# app.py 內加入 Custom CSS
+# app.py 內加入 Custom CSS 
 st.markdown(
     """
     <style>
@@ -50,7 +50,7 @@ st.markdown(
         font-weight: 600;
     }
     
-    /* Footer  */
+    /* 版權聲明 Footer  */
     .dark-footer {
         position: fixed;
         left: 0;
@@ -89,7 +89,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-# --- Session State ---
+# --- Session State  ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -118,6 +118,7 @@ def init_connection() -> Client:
         except Exception:
             return None
     return None 
+
 supabase = init_connection()
 st.session_state.supabase = supabase
 is_connected = st.session_state.supabase is not None
