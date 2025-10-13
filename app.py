@@ -9,15 +9,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# app.py 內加入 Custom CSS 
+# app.py 內加入 Custom CSS
 st.markdown(
     """
     <style>
     /* 隱藏元素 */
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;} 
+    footer {visibility: hidden;}
+    /* 修正點: 移除 header 的隱藏設定，讓 Streamlit 導航和部署狀態正常顯示 */
     
-    /* 圓角卡片風格 */
+    /* 卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -46,7 +47,7 @@ st.markdown(
 
     /* 標題層次 */
     h1, h2, h3, h4 {
-        color: #FFFFFF !important; /* 確保白色文字高對比 */
+        color: #FFFFFF !important; 
         font-weight: 600;
     }
     
@@ -89,7 +90,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-# --- 全局 Session State 初始化 ---
+# --- Session State  ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -108,7 +109,7 @@ st.warning("""
 
 @st.cache_resource
 def init_connection() -> Client:
-    """初始化 Supabase 連線並快取"""
+    """連線並快取"""
     
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
@@ -119,7 +120,7 @@ def init_connection() -> Client:
             return None
     return None 
 
-# 確保連線並儲存到狀態中
+# 確保連線初始化並儲存到狀態中
 supabase = init_connection()
 st.session_state.supabase = supabase
 is_connected = st.session_state.supabase is not None
@@ -206,10 +207,39 @@ def auto_update_username(new_username):
 
 # --- 儀表板主邏輯 ---
 def main():
-    # 主頁面引導訊息 (只在未登入時顯示)
-    if st.session_state.user is None:
-        st.info("請在左側欄位登入以存取個人設定和互動功能。您可透過側邊欄導航列查看所有公開頁面內容。")
-    
+        if st.session_state.user is None:        
+        # --- 頁面摘要卡片 ---
+        page_summary = [
+            {"title": "大會資料", "icon": "📄", "desc": "查看活動議程、規則與行為準則，掌握活動基本資訊。"},
+            {"title": "補充資訊", "icon": "🔗", "desc": "查閱核心政策、數據圖表與統計分析，快速了解背景知識。"},
+            {"title": "紅隊儀表板", "icon": "🛡️", "desc": "即時查看所有建議的投票與共識狀態，並進行篩選。"},
+            {"title": "共創新聞牆", "icon": "📢", "desc": "發表主題貼文、意見，並對其他人的回饋表達 Reaction。"},
+            {"title": "致謝與授權", "icon": "🤝", "desc": "查看專案開發團隊、貢獻者名單與程式碼授權說明。"},
+        ]
+        
+        st.subheader("平台功能總覽")
+        st.markdown("---")
+
+        cols = st.columns(2)
+        
+        for i, item in enumerate(page_summary):
+            col = cols[i % 2]
+            
+            # 使用 HTML 創建圓角卡片
+            card_html = f"""
+            <div style="
+                background-color: #383838; 
+                padding: 15px; 
+                border-radius: 12px; 
+                margin-bottom: 15px;
+                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            ">
+                <h3 style="color: #1DB954; margin-top: 0; margin-bottom: 5px;">{item['icon']} {item['title']}</h3>
+                <p style="color: #DDDDDD; font-size: 14px;">{item['desc']}</p>
+            </div>
+            """
+            col.markdown(card_html, unsafe_allow_html=True)
+        
     # 個人設定與 Admin 提示 (只在登入後顯示)
     if st.session_state.user is not None:
         st.sidebar.markdown("---")
@@ -228,5 +258,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # 確保兩個函式按順序執行，讓程式碼完整執行到檔案末尾
     authenticate_user()
     main()
