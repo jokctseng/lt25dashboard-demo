@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import Client, create_client
 import uuid 
 import os # 用於環境變數或 secrets 檢查
+st.set_page_config(page_title="管理員後台")
 
 # --- 初始化與權限檢查 ---
 
