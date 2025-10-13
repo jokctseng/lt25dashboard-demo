@@ -241,5 +241,5 @@ plot_corpus_trend(df_corpus_agg)
 
 with st.expander("查看原始數據：語料庫採集數"):
     df_corpus_display = df_corpus.copy()
-    df_corpus_display.rename(columns={'年度_西元': '年度'}, inplace=True)
+    df_corpus_display.rename(columns={'年度_西元': '年度(西元）'}, inplace=True)
     st.dataframe(df_corpus_display, use_container_width=True, hide_index=True)
