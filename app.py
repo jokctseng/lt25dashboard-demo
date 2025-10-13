@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
+import os # 為了檢查 secrets 命名慣例，雖然此處未直接使用，但保留是好習慣
 
 # --- 0. 配置與初始化 ---
 st.set_page_config(
@@ -8,7 +9,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
+# app.py 內加入 Custom CSS (Spotify 風格)
 st.markdown(
     """
     <style>
@@ -50,7 +51,7 @@ st.markdown(
         font-weight: 600;
     }
     
-    /*  Footer  */
+    /* 版權聲明 Footer  */
     .dark-footer {
         position: fixed;
         left: 0;
@@ -89,6 +90,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
+# --- 全局 Session State 初始化 ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -108,16 +110,23 @@ st.warning("""
 @st.cache_resource
 def init_connection() -> Client:
     """初始化 Supabase 連線並快取"""
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"] 
-    return create_client(url, key)
+    
+    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+        try:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["anon_key"] 
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None 
 
-try:
-    supabase = init_connection()
-    st.session_state.supabase = supabase
-except Exception:
-    st.warning("🚨 Supabase 連線初始化失敗，部分功能可能無法使用。請檢查 secrets.toml。")
+# 確保連線初始化並儲存到狀態中
+supabase = init_connection()
+if supabase is None:
     st.session_state.supabase = None 
+    # 這裡移除 warning，改在 main() 中顯示，以防中斷 pages 註冊
+else:
+    st.session_state.supabase = supabase
 
 # --- 認證與權限檢查 ---
 
@@ -133,21 +142,28 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
+    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
+    
+    # 修正點 5: 檢查連線狀態，如果失敗則顯示錯誤，但不阻止後續 UI 繪製
+    if st.session_state.supabase is None:
+        st.sidebar.error("連線錯誤，無法登入/註冊。")
+        return # 連線失敗，無法進行認證，但程式繼續往下執行，只畫了 sidebar 錯誤
+
     if st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
+        
         with st.sidebar.form("auth_form"):
             auth_type = st.radio("選擇操作", ["登入", "註冊"])
             email = st.text_input("Email")
             password = st.text_input("密碼", type="password")
             submitted = st.form_submit_button("執行")
+
             if submitted:
                 try:
                     if auth_type == "註冊":
-                        # 註冊邏輯
                         user = st.session_state.supabase.auth.sign_up({"email": email, "password": password})
                         st.success("註冊成功！請檢查 Email 以驗證帳號。")
                     else:
-                        # 登入邏輯
                         user = st.session_state.supabase.auth.sign_in_with_password({"email": email, "password": password})
                         st.session_state.user = user.user
                         fetch_user_profile(user.user.id)
@@ -159,7 +175,8 @@ def authenticate_user():
         # 已登入 
         user_role = st.session_state.role
         user_email = st.session_state.user.email
-        display_name = st.session_state.username 
+        display_name = st.session_state.username
+        
         # 決定問候語的顯示名稱
         if user_role == 'system_admin':
             greeting_name = f"管理員 - {display_name or user_email}"
@@ -194,12 +211,11 @@ def auto_update_username(new_username):
 
 # --- 儀表板主邏輯 ---
 def main():
-    # 主頁面引導訊息
+    # 主頁面引導訊息 (只在未登入時顯示)
     if st.session_state.user is None:
         st.info("請在左側欄位登入以存取個人設定和互動功能。您可透過側邊欄導航列查看所有公開頁面內容。")
-
-    # 個人設定與 Admin 提示
-    if st.session_state.user is not None:
+    else:
+        # 個人設定與 Admin 提示 (只在登入後顯示)
         st.sidebar.markdown("---")
         st.sidebar.subheader("👤 個人設定")
         current_username = st.session_state.username or ""
@@ -216,5 +232,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # 確保兩個函式按順序執行，讓程式碼完整執行到檔案末尾
     authenticate_user()
     main()
