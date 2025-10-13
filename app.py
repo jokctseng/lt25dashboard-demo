@@ -79,9 +79,9 @@ st.markdown(
     <meta name="robots" content="noindex, nofollow">
     
     <div class="dark-footer">
-        版權所有 © 2025 青年代號：GenAI 協作平台｜<span class="credit-text">技術支援:</span> 
+        版權所有 © 2025 青年代號：GenAI 協作平台｜<span class="credit-text">技術支援：</span> 
         <a href="https://jokctseng.github.io" class="credit-link">小工</a> 
-        <span class="credit-text">｜完整致謝: 請查看致謝與授權頁面</span> 
+        <span class="credit-text">｜完整致謝：請查看致謝與授權頁面</span> 
     </div>
     </div>
     """,
@@ -188,7 +188,7 @@ def auto_update_username(new_username):
 
 # --- 儀表板主邏輯 ---
 def main():
-    if authenticate_user():
+    if st.session_state.user is not None:
         st.sidebar.markdown("---")
         st.sidebar.subheader("👤 個人設定")
         current_username = st.session_state.username or ""
@@ -202,8 +202,7 @@ def main():
         if st.session_state.role == 'system_admin':
             st.sidebar.markdown("---")
             st.sidebar.warning("🔑 系統管理員：請至 [Admin_Dashboard] 頁面管理使用者權限與個資。")
-    else:
-        st.info("請在左側欄位登入以存取平台內容。")
+
 
 if __name__ == "__main__":
     main()
