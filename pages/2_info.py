@@ -171,7 +171,7 @@ def plot_corpus_trend(df):
         title='語料庫採集數年度趨勢',
         markers=True
     )
-    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="總採集數")
+    fig.update_layout(xaxis_title="年度", yaxis_title="總採集數")
     st.plotly_chart(fig, use_container_width=True)
 
 
