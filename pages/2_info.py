@@ -219,9 +219,8 @@ st.caption("資料來源：政府開放資料平台，最新資訊請看AIGO網�
 
 st.subheader("完整課程列表 (含連結)")
 
-# 顯示關鍵欄位，並將年度換成西元
-#df_course_list = df_courses[['年度_西元', '合作單位', '課程名稱', '時數', '網址']].copy()
-#df_course_list.rename(columns={'年度_西元': '年度'}, inplace=True)
+df_course_list = df_courses[['年度_西元', '合作單位', '課程名稱', '時數', '網址']].copy()
+df_course_list.rename(columns={'年度_西元': '年度'}, inplace=True)
 st.dataframe(df_course_list, use_container_width=True, hide_index=True)
 
 
