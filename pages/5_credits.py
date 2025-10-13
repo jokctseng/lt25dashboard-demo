@@ -27,7 +27,7 @@ st.header("📝 專案與資料授權說明 (Licensing)")
 
 st.subheader("程式碼與架構授權 (Code & Architecture)")
 st.markdown("""
-本專案採用雙重授權模式，以區分底層程式碼和面向使用者的內容：
+本專案採用雙重授權模式，以區分程式碼和其他內容：
 
 * **程式碼 (Python Code & Logic)：**
   * **授權類型：** **MIT 授權 (The MIT License)**
