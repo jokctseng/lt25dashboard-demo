@@ -16,7 +16,7 @@ def init_connection_for_page() -> Client:
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
             url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["anon_key"] 
+            key = st.secrets["supabase"]["key"] 
             return create_client(url, key)
         except Exception:
             return None
