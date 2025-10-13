@@ -173,9 +173,10 @@ def plot_corpus_trend(df):
     fig = px.line(
         df, x='年度_西元', y='採集數',
         title='語料庫採集數年度趨勢',
-        markers=True
+        markers=True,
+        category_orders={"年度_西元": sorted(df['年度_西元'].unique())}
     )
-    fig.update_layout(xaxis_title="年度", yaxis_title="總採集數")
+    fig.update_layout(xaxis_title="年度", yaxis_title="總採集數", xaxis={'categoryorder':'category ascending', 'type':'category'})
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -214,13 +215,13 @@ st.markdown("---")
 # --- 3.3 教育：AIGO 自製線上課程總覽 (AIGO_OnlineCourse.csv) ---
 st.header("3. 全民AI識能與教育：AIGO 自製線上課程總覽")
 st.caption("資料來源：政府開放資料平台，最新資訊請看AIGO網站。圖表顯示各年課程總時數。")
-plot_course_hours(df_courses)
+#plot_course_hours(df_courses)
 
 st.subheader("完整課程列表 (含連結)")
 
 # 顯示關鍵欄位，並將年度換成西元
-df_course_list = df_courses[['年度_西元', '合作單位', '課程名稱', '時數', '網址']].copy()
-df_course_list.rename(columns={'年度_西元': '年度'}, inplace=True)
+#df_course_list = df_courses[['年度_西元', '合作單位', '課程名稱', '時數', '網址']].copy()
+#df_course_list.rename(columns={'年度_西元': '年度'}, inplace=True)
 st.dataframe(df_course_list, use_container_width=True, hide_index=True)
 
 
