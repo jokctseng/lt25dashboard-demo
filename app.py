@@ -136,7 +136,16 @@ def fetch_user_profile(user_id):
     except Exception:
         st.session_state.role = "user"
         st.session_state.username = None
-
+        
+if is_connected and st.session_state.user is None:
+    try:
+        session = st.session_state.supabase.auth.get_session()
+        if session and session.user:
+            st.session_state.user = session.user
+            fetch_user_profile(session.user.id)
+            st.experimental_rerun()
+    except Exception:
+        pass
 def authenticate_user():
     """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
     
