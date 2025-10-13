@@ -72,7 +72,7 @@ st.subheader("開發與維護")
 st.markdown("""
 * **總體設計與開發：** [小工](https://jokctseng.github.io)
 * **網頁架構：** Streamlit
-* **S資料庫管理：** Supabase
+* **資料庫管理：** Supabase
 """)
 
 # 內容與資料
