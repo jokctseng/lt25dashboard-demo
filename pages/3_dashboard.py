@@ -3,15 +3,33 @@ import pandas as pd
 import plotly.express as px
 from supabase import Client
 import time
+import os
 
 st.set_page_config(page_title="紅隊儀表板")
 
 # --- 初始化與配置 ---
+@st.cache_resource(ttl=None) # 避免重複創建
+def init_connection_for_page() -> Client:
+    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+        try:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["anon_key"] 
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None 
 
-# 檢查 Supabase 連線狀態 (如果連線不存在，則顯示警告並停止，但允許 'guest' 繼續)
-if "supabase" not in st.session_state:
-    st.error("Supabase 連線失敗，請檢查配置。")
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    # 嘗試自我初始化連線
+    st.session_state.supabase = init_connection_for_page()
+
+# 如果連線仍為 None，顯示錯誤並中斷
+if st.session_state.supabase is None:
+    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
+    
+# 連線成功，設置客戶端變數
+supabase: Client = st.session_state.supabase
 
 # 確定使用者 ID (用於投票)
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
