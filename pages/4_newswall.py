@@ -95,7 +95,15 @@ def submit_post(topic, post_type, content):
             st.error("請先登入才能發表貼文。")
             return
         
-        supabase.table('posts').insert({"user_id": st.session_state.user.id, "topic": topic, "post_type": post_type, "content": content}).execute()
+        user_id_to_insert = st.session_state.user.id 
+        
+        supabase.table('posts').insert({
+            "user_id": user_id_to_insert, 
+            "topic": topic, 
+            "post_type": post_type, 
+            "content": content
+        }).execute()
+        
         st.toast("貼文已成功發布！")
         st.cache_data.clear()
         st.experimental_rerun()
