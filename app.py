@@ -8,7 +8,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# app.py 內加入 Custom CSS (Spotify 風格)
 st.markdown(
     """
     <style>
@@ -17,7 +16,7 @@ st.markdown(
     footer {visibility: hidden;}
     header {visibility: hidden;} 
     
-    /* 原角卡片風格 */
+    /* 圓角卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -83,14 +82,13 @@ st.markdown(
         <a href="https://jokctseng.github.io" class="credit-link">小工</a> 
         <span class="credit-text">｜完整致謝：請查看致謝與授權頁面</span> 
     </div>
-    </div>
     """,
     unsafe_allow_html=True
 )
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
-# --- 全局 Session State 初始化 (修正點) ---
-# 確保這些核心變數在整個 App 生命周期中都存在
+
+# --- Session State 初始化 ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -98,9 +96,8 @@ if "role" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 if "supabase" not in st.session_state:
-    # 這裡應該初始化 supabase client
-    # 由於 supabase client 需要 init_connection() 函數，我們將其放在下方
-    pass
+    st.session_state.supabase = None 
+
 # --- 置頂公告區塊 ---
 st.warning("""
 🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，輸入意見及投票需註冊並以電郵驗證，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
@@ -112,20 +109,26 @@ st.warning("""
 def init_connection() -> Client:
     """初始化 Supabase 連線並快取"""
     url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
+    key = st.secrets["supabase"]["key"] 
     return create_client(url, key)
 
-supabase = init_connection()
-st.session_state.supabase = supabase
+# 確保連線初始化並儲存到狀態中 (連線失敗也不要中斷程式執行)
+try:
+    supabase = init_connection()
+    st.session_state.supabase = supabase
+except Exception as e:
+    st.warning("🚨 Supabase 連線失敗，部分功能可能無法使用。請聯繫系統管理員檢查密鑰設定。")
+    st.session_state.supabase = None 
 
 # --- 認證與權限檢查 ---
 
 def fetch_user_profile(user_id):
     """從 profiles 表格獲取使用者角色與暱稱"""
     try:
-        response = supabase.table('profiles').select("role, username").eq('id', user_id).single().execute()
-        st.session_state.role = response.data['role']
-        st.session_state.username = response.data['username']
+        if st.session_state.supabase:
+            response = st.session_state.supabase.table('profiles').select("role, username").eq('id', user_id).single().execute()
+            st.session_state.role = response.data['role']
+            st.session_state.username = response.data['username']
     except Exception:
         st.session_state.role = "user"
         st.session_state.username = None
@@ -145,16 +148,18 @@ def authenticate_user():
             if submitted:
                 try:
                     if auth_type == "註冊":
+                        # 註冊邏輯
                         user = supabase.auth.sign_up({"email": email, "password": password})
                         st.success("註冊成功！請檢查 Email 以驗證帳號。")
                     else:
+                        # 登入邏輯
                         user = supabase.auth.sign_in_with_password({"email": email, "password": password})
                         st.session_state.user = user.user
                         fetch_user_profile(user.user.id)
                         st.experimental_rerun()
                 except Exception as e:
                     st.error(f"認證失敗: {e}")
-        return False
+        
     else:
         # 已登入 
         user_role = st.session_state.role
@@ -180,14 +185,15 @@ def authenticate_user():
             st.session_state.role = "guest"
             st.session_state.username = None
             st.experimental_rerun()
-        return True
+        # 移除 return True
+        
 
 # --- 自動儲存 ---
 def auto_update_username(new_username):
     """無按鈕自動儲存暱稱"""
     try:
-        if st.session_state.user:
-            supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
+        if st.session_state.user and st.session_state.supabase:
+            st.session_state.supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
             st.session_state.username = new_username
             st.toast("暱稱已自動儲存！")
     except Exception as e:
@@ -195,6 +201,11 @@ def auto_update_username(new_username):
 
 # --- 儀表板主邏輯 ---
 def main():
+    # 主頁面引導訊息
+    if st.session_state.user is None:
+        st.info("請在左側欄位登入以存取個人設定和互動功能。您可透過側邊欄導航列查看所有公開頁面內容。")
+
+    # 個人設定與 Admin 提示
     if st.session_state.user is not None:
         st.sidebar.markdown("---")
         st.sidebar.subheader("👤 個人設定")
@@ -208,7 +219,8 @@ def main():
         
         if st.session_state.role == 'system_admin':
             st.sidebar.markdown("---")
-            st.sidebar.warning("🔑 系統管理員：請至 [Admin_Dashboard] 頁面管理使用者權限與個資。")
+            # 修正點 3: 提醒 Admin Dashboard 的名稱應符合 pages/admin_dashboard.py
+            st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
 
 
 if __name__ == "__main__":
