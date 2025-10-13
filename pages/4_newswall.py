@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from supabase import create_client, Client
+from supabase import create_client, Client 
 import time
-import os
+
+# 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
 # --- 分頁自我連線初始化 ---
@@ -21,7 +22,6 @@ def init_connection_for_page() -> Client:
 
 # 檢查 Session State 或初始化
 if "supabase" not in st.session_state or st.session_state.supabase is None:
-    # 嘗試自我初始化連線
     st.session_state.supabase = init_connection_for_page()
 
 # 如果連線仍為 None，顯示錯誤並中斷
@@ -37,7 +37,6 @@ supabase: Client = st.session_state.supabase
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
-
 
 
 st.title("📢 共創新聞牆")
@@ -61,7 +60,7 @@ def fetch_posts_and_reactions():
 
     return pd.DataFrame(posts_res.data), pd.DataFrame(reactions_res.data)
 
-# --- 貼文提交邏輯 (同前) ---
+# --- 貼文提交邏輯---
 def submit_post(topic, post_type, content):
     try:
         supabase.table('posts').insert({"user_id": st.session_state.user.id, "topic": topic, "post_type": post_type, "content": content}).execute()
@@ -71,7 +70,7 @@ def submit_post(topic, post_type, content):
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
-# --- React 處理邏輯 (同前) ---
+# --- React 處理邏輯  ---
 def handle_reaction(post_id, reaction_type):
     try:
         supabase.table('reactions').upsert({"post_id": post_id, "user_id": st.session_state.user.id, "reaction_type": reaction_type}, on_conflict="post_id, user_id").execute()
@@ -80,7 +79,7 @@ def handle_reaction(post_id, reaction_type):
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
-# --- 管理員刪除貼文邏輯 (同前) ---
+# --- 管理員刪除貼文邏輯---
 def delete_post(post_id):
     if st.session_state.role in ['system_admin', 'moderator']:
         try:
@@ -139,7 +138,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 1. 匿名化與角色名稱顯示邏輯 (應用新的精確邏輯)
+    # 1. 匿名化與角色名稱顯示邏輯 
     author_data = row['profiles']
     
     username = author_data[0].get('username') if isinstance(author_data, list) and author_data and author_data[0] else None
@@ -167,7 +166,7 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
-    # 2. React 按鈕 (同前)
+    # 2. React 按鈕 
     with col_react:
         react_col1, react_col2, react_col3 = st.columns(3)
         if react_col1.button("👍", key=f"sup_{row['id']}"):
@@ -177,7 +176,7 @@ for index, row in posts_df.iterrows():
         if react_col3.button("👎", key=f"opp_{row['id']}"):
             handle_reaction(row['id'], '反對')
     
-    # 3. 版主刪除按鈕 (同前)
+    # 3. 版主刪除按鈕
     if st.session_state.role in ['system_admin', 'moderator']:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
