@@ -59,7 +59,22 @@ def fetch_posts_and_reactions():
     reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
 
     return pd.DataFrame(posts_res.data), pd.DataFrame(reactions_res.data)
-
+    
+ except Exception as e:
+        st.error(f"新聞牆載入失敗，已嘗試降級讀取。原因：{e}")
+        try:
+             # 降級：只選擇 posts 的欄位，不進行 JOIN
+             posts_res_fallback = supabase.table('posts').select(
+                "id, content, created_at, user_id, topic, post_type"
+             ).order("created_at", desc=True).execute()
+             
+             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
+             df_posts_fallback['profiles'] = [{}] * len(df_posts_fallback)
+             
+             return df_posts_fallback, pd.DataFrame()
+        except Exception as fallback_e:
+             st.error(f"退化載入失敗：{fallback_e}")
+             return pd.DataFrame(), pd.DataFrame()
 # --- 貼文提交邏輯---
 def submit_post(topic, post_type, content):
     try:
@@ -92,18 +107,19 @@ def delete_post(post_id):
 
 # --- 介面渲染 ---
 
-st.subheader("📝 發表您的回饋、意見或想法")
-with st.form("new_post_form", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    topic = col1.selectbox("選擇主題", options=TOPICS)
-    post_type = col2.selectbox("選擇意見類型", options=['回饋', '小組共創', '其他'])
-    content = st.text_area("內容")
-    
-    if st.form_submit_button("發布貼文"):
-        if content:
-            submit_post(topic, post_type, content)
-        else:
-            st.warning("請填寫內容！")
+if is_logged_in:
+    st.subheader("📝 發表您的回饋、意見或想法")
+    with st.form("new_post_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        topic = col1.selectbox("選擇主題", options=TOPICS)
+        post_type = col2.selectbox("選擇意見類型", options=['回饋', '小組共創', '其他'])
+        content = st.text_area("內容")
+        
+        if st.form_submit_button("發布貼文"):
+            if content:
+                submit_post(topic, post_type, content)
+            else:
+                st.warning("請填寫內容！")
 
 st.markdown("---")
 posts_df, reactions_df = fetch_posts_and_reactions()
@@ -140,9 +156,14 @@ for index, row in posts_df.iterrows():
     
     # 1. 匿名化與角色名稱顯示邏輯 
     author_data = row['profiles']
-    
-    username = author_data[0].get('username') if isinstance(author_data, list) and author_data and author_data[0] else None
-    author_role = author_data[0].get('role', 'user') if isinstance(author_data, list) and author_data and author_data[0] else 'user'
+    username = None
+    author_role = 'user'
+    if author_data and isinstance(author_data, list) and author_data and author_data[0]:
+        username = author_data[0].get('username')
+        author_role = author_data[0].get('role', 'user')
+    elif author_data and isinstance(author_data, dict):
+        username = None 
+        author_role = 'user'
     
     if author_role == 'system_admin':
         short_uid = row['user_id'][:4]
@@ -159,25 +180,27 @@ for index, row in posts_df.iterrows():
     with col_content:
         st.markdown(f"**[{row['topic']}] ({row['post_type']}) - {final_author_name}**") 
         st.write(row['content'])
-        
-        post_reactions = reactions_df[reactions_df['post_id'] == row['id']]
-        reaction_summary = post_reactions.groupby('reaction_type').size().to_dict()
-        
+        post_reactions = reactions_df[reactions_df['post_id'] == row['id']] if not reactions_df.empty else pd.DataFrame()
+        reaction_summary = post_reactions.groupby('reaction_type').size().to_dict() 
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
     # 2. React 按鈕 
     with col_react:
-        react_col1, react_col2, react_col3 = st.columns(3)
-        if react_col1.button("👍", key=f"sup_{row['id']}"):
-            handle_reaction(row['id'], '支持')
-        if react_col2.button("😐", key=f"neu_{row['id']}"):
-            handle_reaction(row['id'], '中立')
-        if react_col3.button("👎", key=f"opp_{row['id']}"):
-            handle_reaction(row['id'], '反對')
+        if is_logged_in:
+            react_col1, react_col2, react_col3 = st.columns(3)
+            if react_col1.button("👍", key=f"sup_{row['id']}"):
+                handle_reaction(row['id'], '支持')
+            if react_col2.button("😐", key=f"neu_{row['id']}"):
+                handle_reaction(row['id'], '中立')
+            if react_col3.button("👎", key=f"opp_{row['id']}"):
+                handle_reaction(row['id'], '反對')
+        else:
+            # 訪客模式：顯示總計數
+            st.caption(f"反應: {summary_text}")
     
     # 3. 版主刪除按鈕
-    if st.session_state.role in ['system_admin', 'moderator']:
+    if is_admin_or_moderator:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
         col_admin.write(f"作者 UID: `{row['user_id']}`")
