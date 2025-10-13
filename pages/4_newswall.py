@@ -4,11 +4,20 @@ import plotly.express as px
 from supabase import Client
 import time
 
-if "supabase" not in st.session_state or st.session_state.role == 'guest':
-    st.warning("請先在主頁登入以使用新聞牆功能。")
+if "supabase" not in st.session_state:
+    st.error("Supabase連線失敗，請聯繫管理員檢查設定")
     st.stop()
+# 確定使用者狀態 
+current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
+is_logged_in = current_user_id is not None
+is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
 
+# 如果只是訪客，給出提示但允許繼續檢視
+if not is_logged_in:
+    st.warning("您目前是訪客模式。發言、和反應功能需要登入才能使用。")
 supabase: Client = st.session_state.supabase
+
+st.set_page_config(page_title="共創新聞牆")
 
 st.title("📢 共創新聞牆")
 st.markdown("---")
