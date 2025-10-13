@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+
+# 設置頁面標題
 st.set_page_config(page_title="參考資料")
 
 st.title("🔗 相關補充資訊與數據概覽")
@@ -80,10 +82,10 @@ def load_and_prepare_data():
         df_grant = pd.read_csv(FILE_GRANT)
         df_corpus = pd.read_csv(FILE_CORPUS)
     except FileNotFoundError:
-        return None, None, None, None, None, None 
+        st.error("無法載入數據：請確認所有 CSV 檔案已正確放置在專案根目錄。")
+        return None, None, None, None, None, None, None, None 
 
     # --- A. Hotspots (iTaiwan_spots.csv) ---
-    # 融化數據以繪製區域趨勢圖 
     year_cols = [col for col in df_hotspots.columns if '熱點數量' in col]
     regional_aggregates = df_hotspots[
         df_hotspots['地區'].isin(['北部區域', '中部區域', '南部區域', '東部區域', '離島區域'])
@@ -98,7 +100,6 @@ def load_and_prepare_data():
     df_hotspots_melt['年度'] = df_hotspots_melt['年度'].str.replace('年(熱點數量)', '', regex=False).astype(int)
     
     # --- B. Talent (AI_Talent.csv) ---
-    # 融化數據以繪製多情境趨勢圖 
     df_talent_melt = df_talent.melt(
         id_vars='年度', 
         value_vars=['樂觀推估新增專才人數', '持平推估新增專才人數', '保守推估新增專才人數'],
@@ -107,35 +108,30 @@ def load_and_prepare_data():
     )
     
     # --- C. Courses (AIGO_OnlineCourse.csv) ---
-    # 年份轉換 
     df_courses['年度_西元'] = df_courses['年度'].apply(minguo_to_gregorian)
-    # 時數清洗: 移除 'hr' 並轉換為數值
     df_courses['時數_num'] = df_courses['時數'].astype(str).str.replace('hr', '', regex=False)
     df_courses['時數_num'] = pd.to_numeric(df_courses['時數_num'], errors='coerce').fillna(0)
     
     # --- D. Grant (AI_Grant.csv) ---
-    # 發布日期年份轉換 
     df_grant['發布年份_西元'] = df_grant['發布日期'].astype(str).str[:3].astype(int).apply(minguo_to_gregorian)
 
     # --- E. Corpus (corpus_collect.csv) ---
-    # 年份轉換
     df_corpus['年度_西元'] = df_corpus['年度'].apply(minguo_to_gregorian)
-    # 聚合採集數
     df_corpus_agg = df_corpus.groupby('年度_西元')['採集數'].sum().reset_index()
 
-    return df_hotspots, df_hotspots_melt, df_talent_melt, df_courses, df_grant, df_corpus_agg
+    return df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus
 
-# 載入所有數據
-df_hotspots, df_hotspots_melt, df_talent_melt, df_courses, df_grant, df_corpus_agg = load_and_prepare_data()
+# 載入所有數據 (這裡接收的變數順序至關重要)
+df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus = load_and_prepare_data()
 
-# 檢查數據是否成功載入
+# 檢查數據是否成功載入 
 if df_hotspots is None:
     st.title("📊 相關補充資訊與統計分析")
-    st.error("無法載入數據：請確認所有 CSV 檔案已正確放置。")
     st.stop()
 
 
 # --- 2. 視覺化繪圖函式 (Plotly) ---
+# 繪圖函式 (保持不變)
 
 def plot_hotspots_trend(df):
     """iTaiwan 熱點數量分區域趨勢圖"""
@@ -154,7 +150,7 @@ def plot_talent_projection(df):
         title='AI 專才新增人數推估趨勢',
         markers=True
     )
-    fig.update_layout(xaxis_title="年度 ", yaxis_title="新增專才人數")
+    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="新增專才人數")
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_course_hours(df):
@@ -165,7 +161,7 @@ def plot_course_hours(df):
         title='AIGO 自製線上課程總時數',
         text_auto=True
     )
-    fig.update_layout(xaxis_title="年度", yaxis_title="總時數 (小時)")
+    fig.update_layout(xaxis_title="年度)", yaxis_title="總時數 (小時)")
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_corpus_trend(df):
@@ -175,8 +171,9 @@ def plot_corpus_trend(df):
         title='語料庫採集數年度趨勢',
         markers=True
     )
-    fig.update_layout(xaxis_title="年度", yaxis_title="總採集數")
+    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="總採集數")
     st.plotly_chart(fig, use_container_width=True)
+
 
 # --- 3. Streamlit 頁面內容 ---
 
@@ -185,8 +182,8 @@ st.markdown("---")
 
 
 # --- 3.1 資訊與社會防護 I：iTaiwan 熱點覆蓋趨勢 (iTaiwan_spots.csv) ---
-st.header("數位基礎建設：iTaiwan 熱點覆蓋趨勢")
-st.caption("數據來源：iTaiwan熱點數。圖表顯示五大區域熱點數量逐年變化。")
+st.header("1. 資訊與社會防護：iTaiwan 熱點覆蓋趨勢")
+st.caption("數據來源：iTaiwan熱點數。圖表顯示五大區域熱點數量隨西元年的變化。")
 plot_hotspots_trend(df_hotspots_melt)
 
 with st.expander("查看原始數據：iTaiwan 熱點數"):
@@ -199,18 +196,19 @@ st.markdown("---")
 
 
 # --- 3.2 勞動產業：AI 專才新增人數推估 (AI_Talent.csv) ---
-st.header("勞動及產業轉型：AI 專才新增人數推估")
+st.header("2. 勞動及產業轉型：AI 專才新增人數推估")
 st.caption("數據來源：AI專才推估。圖表呈現三種不同情境下，AI 專才新增人數隨西元年的推估趨勢。")
 plot_talent_projection(df_talent_melt)
 
 with st.expander("查看原始數據：專才推估"):
+    # 修正點 4: 使用 df_talent 變數，現在它已被正確賦值
     st.dataframe(df_talent, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
 
 # --- 3.3 教育：AIGO 自製線上課程總覽 (AIGO_OnlineCourse.csv) ---
-st.header("全民AI識能與教育：AIGO 自製線上課程總覽")
+st.header("3. 全民AI識能與教育：AIGO 自製線上課程總覽")
 st.caption("資料來源：政府開放資料平台，最新資訊請看AIGO網站。圖表顯示各年課程總時數。")
 plot_course_hours(df_courses)
 
@@ -218,7 +216,7 @@ st.subheader("完整課程列表 (含連結)")
 
 # 顯示關鍵欄位，並將年度換成西元
 df_course_list = df_courses[['年度_西元', '合作單位', '課程名稱', '時數', '網址']].copy()
-df_course_list.rename(columns={'年度_西元': '年度 (西元)'}, inplace=True)
+df_course_list.rename(columns={'年度_西元': '年度'}, inplace=True)
 st.dataframe(df_course_list, use_container_width=True, hide_index=True)
 
 
@@ -226,7 +224,7 @@ st.markdown("---")
 
 
 # --- 3.4 數位平權與共融治理：補助計畫 (AI_Grant.csv) ---
-st.header("補助計畫列表")
+st.header("4. 補助計畫列表")
 st.caption("資料來源：行政院智慧國家2.0推動小組。")
 
 # 顯示美化後的表格，並突出關鍵資訊
@@ -237,11 +235,11 @@ st.dataframe(df_grant_display, use_container_width=True, hide_index=True)
 st.markdown("---")
 
 # --- 3.5 資訊與社會防護 II：語料庫採集趨勢 (corpus_collect.csv) ---
-st.header("文化：全國語言推廣人員工作成果語料採集與紀錄則數統計")
+st.header("5. 文化：全國語言推廣人員工作成果語料採集與紀錄則數統計")
 st.caption("資料來源：原民會開放資料")
 plot_corpus_trend(df_corpus_agg)
 
 with st.expander("查看原始數據：語料庫採集數"):
     df_corpus_display = df_corpus.copy()
-    df_corpus_display.rename(columns={'年度_西元': '年度 (西元)'}, inplace=True)
+    df_corpus_display.rename(columns={'年度_西元': '年度'}, inplace=True)
     st.dataframe(df_corpus_display, use_container_width=True, hide_index=True)
