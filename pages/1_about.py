@@ -103,7 +103,7 @@ st.header("主持與專家團隊")
 
 data_host = {
     "角色": ["大場", "大場", "大場", "大場", "桌長", "桌長", "桌長", "桌長", "桌長"],
-    "姓名": ["曾廣芝", "崔家瑋", "林玟圻", "阮敬瑩", "沈鈺琪", "洪堃斌", "王明義", "廖宇雯", "張為然"],
+    "姓名": ["曾廣芝", "崔家瑋", "林玟圻", "阮敬瑩", "沈鈺琪", "洪堃斌", "待確認", "廖宇雯", "張為然"],
     "簡歷": [
         "青年好政審議業師 <br>第二/三屆行政院青年諮詢委員", 
         "青年好政審議業師 <br>中研院法律學研究所研究助理", 
@@ -157,7 +157,7 @@ with tab4:
 with tab5:
     st.subheader("相關單位")
     with st.expander("感謝相關部會局處出席及參與"):
-        st.dataframe(pd.DataFrame(data_department), use_container_width=True, hide_index=True, unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(data_department), use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
