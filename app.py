@@ -89,7 +89,18 @@ st.markdown(
 )
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
-
+# --- 全局 Session State 初始化 (修正點) ---
+# 確保這些核心變數在整個 App 生命周期中都存在
+if "user" not in st.session_state:
+    st.session_state.user = None
+if "role" not in st.session_state:
+    st.session_state.role = "guest"
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "supabase" not in st.session_state:
+    # 這裡應該初始化 supabase client
+    # 由於 supabase client 需要 init_connection() 函數，我們將其放在下方
+    pass
 # --- 置頂公告區塊 ---
 st.warning("""
 🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，輸入意見及投票需註冊並以電郵驗證，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
@@ -121,10 +132,6 @@ def fetch_user_profile(user_id):
 
 def authenticate_user():
     """處理使用者登入/登出和角色檢查"""
-    if "user" not in st.session_state:
-        st.session_state.user = None
-        st.session_state.role = "guest"
-        st.session_state.username = None
 
     if st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
@@ -205,4 +212,5 @@ def main():
 
 
 if __name__ == "__main__":
+    authenticate_user()
     main()
