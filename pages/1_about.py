@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd 
+import os
 
 st.set_page_config(page_title="大會資料")
 
@@ -156,7 +157,7 @@ with tab4:
 with tab5:
     st.subheader("相關單位")
     with st.expander("感謝相關部會局處出席及參與"):
-        st.dataframe(pd.DataFrame(data_department), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(data_department), use_container_width=True, hide_index=True, unsafe_allow_html=True)
 
 st.markdown("---")
 
