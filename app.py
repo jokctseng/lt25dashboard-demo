@@ -89,7 +89,6 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-# --- 全局 Session State 初始化 (修正點 1: 確保變數存在) ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -134,17 +133,13 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
-
     if st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
-        
         with st.sidebar.form("auth_form"):
             auth_type = st.radio("選擇操作", ["登入", "註冊"])
             email = st.text_input("Email")
             password = st.text_input("密碼", type="password")
             submitted = st.form_submit_button("執行")
-
             if submitted:
                 try:
                     if auth_type == "註冊":
@@ -164,8 +159,7 @@ def authenticate_user():
         # 已登入 
         user_role = st.session_state.role
         user_email = st.session_state.user.email
-        display_name = st.session_state.username
-        
+        display_name = st.session_state.username 
         # 決定問候語的顯示名稱
         if user_role == 'system_admin':
             greeting_name = f"管理員 - {display_name or user_email}"
