@@ -144,15 +144,47 @@ data_department = {
 
 tab3, tab4, tab5 = st.tabs(["主持團隊", "專家教練", "相關單位"])
 
+def render_team_table(data):
+    """
+    使用 st.columns 和 st.markdown 模擬表格。
+    """
+    if not data:
+        st.info("無數據可顯示。")
+        return
+
+    # 獲取欄位名稱，並設定比例
+    keys = list(data.keys())
+    
+    # 創建標題行 (使用粗體和底線)
+    cols_header = st.columns([1, 1, 3] if len(keys) == 3 else [1, 1, 2, 2])
+    for i, key in enumerate(keys):
+        cols_header[i].markdown(f"**<u>{key}</u>**", unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # 渲染數據行
+    df = pd.DataFrame(data)
+    for index, row in df.iterrows():
+        cols_data = st.columns([1, 1, 3] if len(keys) == 3 else [1, 1, 2, 2])
+        
+        # 渲染第一欄到倒數第二欄 (不需要換行)
+        for i in range(len(keys) - 1):
+            cols_data[i].write(row[keys[i]])
+
+        # 渲染最後一欄 (簡歷或專長領域，需要換行)
+        last_key = keys[-1]
+        # 使用 <br> 替換 \n 進行 HTML 渲染
+        last_content = row[last_key].replace('\n', '<br>')
+        cols_data[len(keys) - 1].markdown(last_content, unsafe_allow_html=True)
+
 with tab3:
     st.subheader("主持團隊")
     with st.expander("點擊展開查看主持團隊名單"): 
-        st.dataframe(pd.DataFrame(data_host), use_container_width=True, hide_index=True, unsafe_allow_html=True)
+        render_team_table(data_host)
 
 with tab4:
     st.subheader("專家教練")
     with st.expander("點擊展開查看專家教練名單"):
-        st.dataframe(pd.DataFrame(data_coach), use_container_width=True, hide_index=True, unsafe_allow_html=True)
+        render_team_table(data_coach) 
 
 with tab5:
     st.subheader("相關單位")
