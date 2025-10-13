@@ -6,18 +6,27 @@ st.title("🤝 專案致謝與貢獻者名單 (Credits)")
 st.caption("本平台能夠順利上線，感謝所有貢獻者的時間、專業與支持。")
 
 st.markdown("---")
-
+st.markdown(
+    """
+<div style="display:none;" vocab="http://creativecommons.org/ns#"
+    typeof="License" resource="https://creativecommons.org/licenses/by/4.0/">
+    
+    <span property="cc:use-ai" content="permitted"></span>
+    
+    <span property="cc:exception" content="cc-cr"></span>
+    <span property="cc:exception" content="op"></span>
+    
+    <span property="cc:attribution-url" content="https://github.com/jokctseng/lt25dashboard-demo"></span>
+    <span property="cc:attribution-name" content="青年代號：GenAI 協作平台"></span>
+</div>
+    """,
+    unsafe_allow_html=True
+)
 # === 授權與引用說明區塊===
 st.header("📝 專案與資料授權說明 (Licensing)")
 
 st.subheader("程式碼與架構授權 (Code & Architecture)")
 st.markdown("""
-<div class="cc-signal-container" style="display:none;" vocab="http://creativecommons.org/ns#"
-    typeof="License" resource="https://creativecommons.org/licenses/by/4.0/">
-<span property="cc:use-ai" content="permitted"></span>
-<span property="cc:exception" content="cc-cr-op"></span>  <span property="cc:attribution-url" content="[https://github.com/jokctseng/lt25dashboard-demo]"></span>
-<span property="cc:attribution-name" content="青年代號：GenAI 協作平台"></span>
-</div>
 本專案採用雙重授權模式，以區分底層程式碼和面向使用者的內容：
 
 * ** 程式碼 (Python Code & Logic)：**
