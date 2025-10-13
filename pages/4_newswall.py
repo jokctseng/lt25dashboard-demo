@@ -3,10 +3,30 @@ import pandas as pd
 import plotly.express as px
 from supabase import Client
 import time
+import os
+st.set_page_config(page_title="共創新聞牆")
+# --- 初始化與配置 ---
+@st.cache_resource(ttl=None) # 避免重複創建
+def init_connection_for_page() -> Client:
+    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+        try:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["anon_key"] 
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None 
 
-if "supabase" not in st.session_state:
-    st.error("Supabase連線失敗，請聯繫管理員檢查設定")
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    # 嘗試自我初始化連線
+    st.session_state.supabase = init_connection_for_page()
+
+# 如果連線仍為 None，顯示錯誤並中斷
+if st.session_state.supabase is None:
+    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
+    
+
 # 確定使用者狀態 
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
@@ -17,7 +37,7 @@ if not is_logged_in:
     st.warning("您目前是訪客模式。發言、和反應功能需要登入才能使用。")
 supabase: Client = st.session_state.supabase
 
-st.set_page_config(page_title="共創新聞牆")
+
 
 st.title("📢 共創新聞牆")
 st.markdown("---")
