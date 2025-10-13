@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd 
-
+st.set_page_config(page_title="大會資料")
 st.title("📄 大會資料")
 
 # --- 核心活動設計與目標 ---
