@@ -1,13 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from supabase import Client
+from supabase import create_client, Client
 import time
 import os
 st.set_page_config(page_title="共創新聞牆")
-# --- 初始化與配置 ---
-@st.cache_resource(ttl=None) # 避免重複創建
+
+# --- 分頁自我連線初始化 ---
+@st.cache_resource(ttl=None) 
 def init_connection_for_page() -> Client:
+    """初始化 Supabase 連線並快取"""
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
             url = st.secrets["supabase"]["url"]
@@ -17,6 +19,7 @@ def init_connection_for_page() -> Client:
             return None
     return None 
 
+# 檢查 Session State 或初始化
 if "supabase" not in st.session_state or st.session_state.supabase is None:
     # 嘗試自我初始化連線
     st.session_state.supabase = init_connection_for_page()
@@ -26,16 +29,14 @@ if st.session_state.supabase is None:
     st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
     
+# 連線成功
+supabase: Client = st.session_state.supabase
 
-# 確定使用者狀態 
+
+# 確定使用者 ID 
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
-
-# 如果只是訪客，給出提示但允許繼續檢視
-if not is_logged_in:
-    st.warning("您目前是訪客模式。發言、和反應功能需要登入才能使用。")
-supabase: Client = st.session_state.supabase
 
 
 
