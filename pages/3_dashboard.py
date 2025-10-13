@@ -4,7 +4,9 @@ import plotly.express as px
 from supabase import Client
 import time
 
-# --- 0. 初始化與配置檢查 ---
+st.set_page_config(page_title="紅隊儀表板")
+
+# --- 初始化與配置 ---
 
 # 檢查 Supabase 連線狀態 (如果連線不存在，則顯示警告並停止，但允許 'guest' 繼續)
 if "supabase" not in st.session_state:
