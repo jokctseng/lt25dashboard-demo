@@ -102,7 +102,7 @@ st.header("主持與專家團隊")
 
 data_host = {
     "角色": ["大場", "大場", "大場", "大場", "桌長", "桌長", "桌長", "桌長", "桌長"],
-    "姓名": ["曾廣芝", "崔家瑋", "林玟圻", "阮敬瑩", "沈鈺琪", "洪堃斌", "休息時間", "廖宇雯", "張為然"],
+    "姓名": ["曾廣芝", "崔家瑋", "林玟圻", "阮敬瑩", "沈鈺琪", "洪堃斌", "姓名", "廖宇雯", "張為然"],
     "簡歷": [
         "青年好政審議業師 <br>第二/三屆行政院青年諮詢委員", 
         "青年好政審議業師 <br>中研院法律學研究所研究助理", 
@@ -144,7 +144,7 @@ tab1, tab2, tab3 = st.tabs(["主持團隊", "專家教練", "相關單位"])
 
 with tab1:
     st.subheader("主持團隊")
-    with st.expander("點擊展開查看第一天議程表", expanded=True): # 預設展開第一天
+    with st.expander("點擊展開查看第一天議程表"): 
         st.dataframe(pd.DataFrame(data_host), use_container_width=True, hide_index=True, unsafe_allow_html=True)
 
 with tab2:
