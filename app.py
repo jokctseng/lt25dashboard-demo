@@ -2,12 +2,13 @@ import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 
-# --- 配置與初始化 ---
+# --- 0. 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
 st.markdown(
     """
     <style>
@@ -16,7 +17,7 @@ st.markdown(
     footer {visibility: hidden;}
     header {visibility: hidden;} 
     
-    /* 圓角卡片風格 */
+    /* 原角卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -49,7 +50,7 @@ st.markdown(
         font-weight: 600;
     }
     
-    /* 版權聲明 Footer  */
+    /*  Footer  */
     .dark-footer {
         position: fixed;
         left: 0;
@@ -88,7 +89,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-# --- Session State 初始化 ---
+# --- 全局 Session State 初始化 (修正點 1: 確保變數存在) ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -112,12 +113,11 @@ def init_connection() -> Client:
     key = st.secrets["supabase"]["key"] 
     return create_client(url, key)
 
-# 確保連線初始化並儲存到狀態中 (連線失敗也不要中斷程式執行)
 try:
     supabase = init_connection()
     st.session_state.supabase = supabase
-except Exception as e:
-    st.warning("🚨 Supabase 連線失敗，部分功能可能無法使用。請聯繫系統管理員檢查密鑰設定。")
+except Exception:
+    st.warning("🚨 Supabase 連線初始化失敗，部分功能可能無法使用。請檢查 secrets.toml。")
     st.session_state.supabase = None 
 
 # --- 認證與權限檢查 ---
@@ -134,7 +134,7 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查"""
+    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
 
     if st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
@@ -149,11 +149,11 @@ def authenticate_user():
                 try:
                     if auth_type == "註冊":
                         # 註冊邏輯
-                        user = supabase.auth.sign_up({"email": email, "password": password})
+                        user = st.session_state.supabase.auth.sign_up({"email": email, "password": password})
                         st.success("註冊成功！請檢查 Email 以驗證帳號。")
                     else:
                         # 登入邏輯
-                        user = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                        user = st.session_state.supabase.auth.sign_in_with_password({"email": email, "password": password})
                         st.session_state.user = user.user
                         fetch_user_profile(user.user.id)
                         st.experimental_rerun()
@@ -180,12 +180,11 @@ def authenticate_user():
         st.sidebar.caption(f"(角色: {user_role})")
         
         if st.sidebar.button("登出"):
-            supabase.auth.sign_out()
+            st.session_state.supabase.auth.sign_out()
             st.session_state.user = None
             st.session_state.role = "guest"
             st.session_state.username = None
             st.experimental_rerun()
-        # 移除 return True
         
 
 # --- 自動儲存 ---
@@ -219,7 +218,6 @@ def main():
         
         if st.session_state.role == 'system_admin':
             st.sidebar.markdown("---")
-            # 修正點 3: 提醒 Admin Dashboard 的名稱應符合 pages/admin_dashboard.py
             st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
 
 
