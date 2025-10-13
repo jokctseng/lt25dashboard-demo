@@ -1,24 +1,23 @@
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
-import os # 為了檢查 secrets 命名慣例，雖然此處未直接使用，但保留是好習慣
+import os 
 
-# --- 0. 配置與初始化 ---
+# --- 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# app.py 內加入 Custom CSS (Spotify 風格)
+# app.py 內加入 Custom CSS 
 st.markdown(
     """
     <style>
     /* 隱藏元素 */
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;} 
+    footer {visibility: hidden;} 
     
-    /* 原角卡片風格 */
+    /* 圓角卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -51,7 +50,7 @@ st.markdown(
         font-weight: 600;
     }
     
-    /* 版權聲明 Footer  */
+    /* Footer  */
     .dark-footer {
         position: fixed;
         left: 0;
@@ -120,13 +119,11 @@ def init_connection() -> Client:
             return None
     return None 
 
-# 確保連線初始化並儲存到狀態中
+# 確保連線並儲存到狀態中
 supabase = init_connection()
-if supabase is None:
-    st.session_state.supabase = None 
-    # 這裡移除 warning，改在 main() 中顯示，以防中斷 pages 註冊
-else:
-    st.session_state.supabase = supabase
+st.session_state.supabase = supabase
+is_connected = st.session_state.supabase is not None
+
 
 # --- 認證與權限檢查 ---
 
@@ -144,12 +141,10 @@ def fetch_user_profile(user_id):
 def authenticate_user():
     """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
     
-    # 修正點 5: 檢查連線狀態，如果失敗則顯示錯誤，但不阻止後續 UI 繪製
-    if st.session_state.supabase is None:
+    if not is_connected:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
-        return # 連線失敗，無法進行認證，但程式繼續往下執行，只畫了 sidebar 錯誤
-
-    if st.session_state.user is None:
+        
+    elif st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
         
         with st.sidebar.form("auth_form"):
@@ -214,8 +209,9 @@ def main():
     # 主頁面引導訊息 (只在未登入時顯示)
     if st.session_state.user is None:
         st.info("請在左側欄位登入以存取個人設定和互動功能。您可透過側邊欄導航列查看所有公開頁面內容。")
-    else:
-        # 個人設定與 Admin 提示 (只在登入後顯示)
+    
+    # 個人設定與 Admin 提示 (只在登入後顯示)
+    if st.session_state.user is not None:
         st.sidebar.markdown("---")
         st.sidebar.subheader("👤 個人設定")
         current_username = st.session_state.username or ""
@@ -232,6 +228,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # 確保兩個函式按順序執行，讓程式碼完整執行到檔案末尾
     authenticate_user()
     main()
