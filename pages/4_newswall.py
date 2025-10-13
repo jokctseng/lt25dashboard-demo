@@ -3,18 +3,19 @@ import pandas as pd
 import plotly.express as px
 from supabase import create_client, Client
 import time
+import uuid 
 
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 分頁自我連線初始化 (保留以確保獨立載入) ---
+# --- 分頁自我連線初始化 ---
 @st.cache_resource(ttl=None) 
 def init_connection_for_page() -> Client:
     """初始化 Supabase 連線並快取"""
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
             url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["key"] 
+            key = st.secrets["supabase"]["anon_key"] 
             return create_client(url, key)
         except Exception:
             return None
@@ -24,7 +25,7 @@ def init_connection_for_page() -> Client:
 if "supabase" not in st.session_state or st.session_state.supabase is None:
     st.session_state.supabase = init_connection_for_page()
 
-# 如果連線仍為 None，顯示錯誤並中斷
+# 顯示錯誤並中斷
 if st.session_state.supabase is None:
     st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
@@ -32,12 +33,23 @@ if st.session_state.supabase is None:
 # 連線成功
 supabase: Client = st.session_state.supabase
 
+# --- Session 恢復與狀態更新 ---
+
+if "user" not in st.session_state or st.session_state.user is None:
+    try:
+        session = supabase.auth.get_session()
+        if session and session.user:
+            st.session_state.user = session.user
+            st.session_state.role = 'user' 
+            st.experimental_rerun() 
+    except Exception:
+        pass # 無效 Session，保持未登入狀態
+
 
 # 確定使用者 ID 
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
-
 
 st.title("📢 共創新聞牆")
 st.markdown("---")
@@ -51,42 +63,37 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
-    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
+    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (新增降級邏輯)"""
     
     try:
-        # 查詢 1 (主貼文): 只查詢 posts 自己的欄位 (RLS 允許所有用戶 SELECT)
+        # 嘗試進行完整查詢
         posts_res = supabase.table('posts').select(
-            "id, content, created_at, user_id, topic, post_type"
+            "id, content, created_at, user_id, topic, post_type, profiles(username, role)" 
         ).order("created_at", desc=True).execute()
         
-        df_posts = pd.DataFrame(posts_res.data)
-        
-        # 查詢 2 (作者暱稱和角色): 只查詢 profiles，不使用關聯查詢
-        if not df_posts.empty:
-            user_ids = df_posts['user_id'].unique().tolist()
-            profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
-            df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
-            
-            # 將 profiles 數據合併到 posts 數據中
-            df_merged = pd.merge(df_posts, df_profiles, on='user_id', how='left')
-            
-        else:
-            # 如果沒有貼文，創建空 DataFrame
-            df_merged = df_posts
-            
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
-        df_reactions = pd.DataFrame(reactions_res.data)
         
-        if 'username' not in df_merged.columns:
-            df_merged['username'] = None
-        if 'role' not in df_merged.columns:
-            df_merged['role'] = 'user'
-            
-        return df_merged, df_reactions
+        # 如果成功，返回完整數據
+        return pd.DataFrame(posts_res.data), pd.DataFrame(reactions_res.data)
         
     except Exception as e:
-        st.error(f"新聞牆數據載入失敗。請提醒管理員檢查 RLS 政策是否允許選擇'posts' 和 'profiles' 表格。錯誤：{e}")
-        return pd.DataFrame(), pd.DataFrame()
+        # 降級策略 ：只查詢 posts，不關聯 profiles
+        st.error(f"新聞牆載入失敗，已嘗試降級讀取。原因：{e}")
+        try:
+             # 降級
+             posts_res_fallback = supabase.table('posts').select(
+                 "id, content, created_at, user_id, topic, post_type"
+             ).order("created_at", desc=True).execute()
+             
+             # 為 posts_df 創建一個空的 profiles 欄位以避免後續程式碼崩潰
+             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
+             df_posts_fallback['profiles'] = [{}] * len(df_posts_fallback)
+             
+             # 返回退化數據和空的 reactions
+             return df_posts_fallback, pd.DataFrame()
+        except Exception as fallback_e:
+             st.error(f"退化載入失敗：{fallback_e}")
+             return pd.DataFrame(), pd.DataFrame()
 
 # --- 貼文提交邏輯---
 def submit_post(topic, post_type, content):
@@ -94,11 +101,9 @@ def submit_post(topic, post_type, content):
         if st.session_state.user is None:
             st.error("請先登入才能發表貼文。")
             return
-        
-        user_id_to_insert = st.session_state.user.id 
-        
-        supabase.table('posts').insert({
-            "user_id": user_id_to_insert, 
+                user_id_str = str(st.session_state.user.id) 
+                supabase.table('posts').insert({
+            "user_id": user_id_str, 
             "topic": topic, 
             "post_type": post_type, 
             "content": content
@@ -109,7 +114,6 @@ def submit_post(topic, post_type, content):
         st.experimental_rerun()
     except Exception as e:
         st.error(f"發布失敗: {e}")
-
 # --- React 處理邏輯  ---
 def handle_reaction(post_id, reaction_type):
     try:
@@ -124,15 +128,24 @@ def handle_reaction(post_id, reaction_type):
         st.error(f"操作失敗: {e}")
 
 # --- 管理員刪除貼文邏輯---
-def delete_post(post_id):
-    if st.session_state.role in ['system_admin', 'moderator']:
-        try:
-            supabase.table('posts').delete().eq('id', post_id).execute()
-            st.toast("貼文已刪除。")
-            st.cache_data.clear()
-            st.experimental_rerun()
-        except Exception as e:
-            st.error(f"刪除失敗: {e}")
+def handle_reaction(post_id, reaction_type):
+    try:
+        if st.session_state.user is None:
+            st.error("請先登入才能進行反應。")
+            return
+            
+        user_id_str = str(st.session_state.user.id)
+        
+        supabase.table('reactions').upsert({
+            "post_id": post_id, 
+            "user_id": user_id_str, # 確保這裡也是 UUID 字串
+            "reaction_type": reaction_type
+        }, on_conflict="post_id, user_id").execute()
+        
+        st.toast(f"已表達 '{reaction_type}'！")
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"操作失敗: {e}")
 
 # --- 介面渲染 ---
 
