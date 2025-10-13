@@ -16,9 +16,8 @@ st.markdown(
     /* 隱藏元素 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* 修正點: 移除 header 的隱藏設定，讓 Streamlit 導航和部署狀態正常顯示 */
     
-    /* 卡片風格 */
+    /* 原角卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -90,7 +89,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-# --- Session State  ---
+# --- Session State ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -119,8 +118,6 @@ def init_connection() -> Client:
         except Exception:
             return None
     return None 
-
-# 確保連線初始化並儲存到狀態中
 supabase = init_connection()
 st.session_state.supabase = supabase
 is_connected = st.session_state.supabase is not None
@@ -207,7 +204,9 @@ def auto_update_username(new_username):
 
 # --- 儀表板主邏輯 ---
 def main():
-        if st.session_state.user is None:        
+    
+    if st.session_state.user is None:
+        
         # --- 頁面摘要卡片 ---
         page_summary = [
             {"title": "大會資料", "icon": "📄", "desc": "查看活動議程、規則與行為準則，掌握活動基本資訊。"},
@@ -258,6 +257,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # 確保兩個函式按順序執行，讓程式碼完整執行到檔案末尾
     authenticate_user()
     main()
