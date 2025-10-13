@@ -65,7 +65,7 @@ FILE_COURSES = "AIGO_OnlineCourse.csv"
 FILE_GRANT = "AI_Grant.csv"
 FILE_CORPUS = "corpus_collect.csv"
 
-# --- 1. 資料清洗工具與快取 ---
+# --- 資料清洗 ---
 
 def minguo_to_gregorian(minguo_year):
     """將民國年轉換為西元年 (民國年 + 1911)"""
@@ -106,7 +106,8 @@ def load_and_prepare_data():
         var_name='推估情境', 
         value_name='新增專才人數'
     )
-    
+    df_talent_melt['年度'] = df_talent_melt['年度'].astype(int)
+
     # --- C. Courses (AIGO_OnlineCourse.csv) ---
     df_courses['年度_西元'] = df_courses['年度'].apply(minguo_to_gregorian)
     df_courses['時數_num'] = df_courses['時數'].astype(str).str.replace('hr', '', regex=False)
@@ -118,23 +119,23 @@ def load_and_prepare_data():
     # --- E. Corpus (corpus_collect.csv) ---
     df_corpus['年度_西元'] = df_corpus['年度'].apply(minguo_to_gregorian)
     df_corpus_agg = df_corpus.groupby('年度_西元')['採集數'].sum().reset_index()
+    df_corpus_agg['年度_西元'] = df_corpus_agg['年度_西元'].astype(int)
 
     return df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus
 
 # 載入所有數據 (這裡接收的變數順序至關重要)
 df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus = load_and_prepare_data()
 
-# 檢查數據是否成功載入 
+# 檢查數據載入 
 if df_hotspots is None:
     st.title("📊 相關補充資訊與統計分析")
     st.stop()
 
 
-# --- 2. 視覺化繪圖函式 (Plotly) ---
-# 繪圖函式 (保持不變)
-
+# --- Plotly ---
 def plot_hotspots_trend(df):
     """iTaiwan 熱點數量分區域趨勢圖"""
+    df['年度'] = df['年度'].astype(str)
     fig = px.line(
         df, x='年度', y='熱點數量', color='地區',
         title='iTaiwan 熱點數量分區域趨勢',
@@ -145,6 +146,7 @@ def plot_hotspots_trend(df):
 
 def plot_talent_projection(df):
     """AI 專才新增人數情境推估趨勢圖"""
+    df['年度'] = df['年度'].astype(str)
     fig = px.line(
         df, x='年度', y='新增專才人數', color='推估情境',
         title='AI 專才新增人數推估趨勢',
@@ -156,6 +158,7 @@ def plot_talent_projection(df):
 def plot_course_hours(df):
     """AIGO 課程總時數趨勢圖"""
     df_agg = df.groupby('年度_西元')['時數_num'].sum().reset_index()
+    df_agg['年度_西元'] = df_agg['年度_西元'].astype(str) 
     fig = px.bar(
         df_agg, x='年度_西元', y='時數_num', color='年度_西元',
         title='AIGO 自製線上課程總時數',
@@ -166,6 +169,7 @@ def plot_course_hours(df):
 
 def plot_corpus_trend(df):
     """語料庫採集數趨勢圖"""
+    df['年度_西元'] = df['年度_西元'].astype(str)
     fig = px.line(
         df, x='年度_西元', y='採集數',
         title='語料庫採集數年度趨勢',
