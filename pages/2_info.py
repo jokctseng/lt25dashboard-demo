@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+st.set_page_config(page_title="參考資料")
 
 st.title("🔗 相關補充資訊與數據概覽")
 st.markdown("---")
