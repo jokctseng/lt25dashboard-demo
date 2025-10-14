@@ -9,44 +9,35 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 分頁自我連線初始化 ---
-@st.cache_resource(ttl=None) 
-def init_connection_for_page() -> tuple[Client | None, Client | None]:
-    """初始化 Supabase 連線 (Anon 和 Admin)"""
-    anon_client = None
-    admin_client = None
-    
-    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+# --- 連線初始化與權限檢查 (修復內容顯示問題) ---
+
+# 1. 確保基礎連線存在 (由 app.py 提供)
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
+    st.stop()
+
+# 獲取 Anon/Authenticated Client (用於所有讀取操作)
+# 這個 client 帶有用戶的 JWT，RLS 讀取是透過它進行的
+supabase: Client = st.session_state.supabase
+
+# 2. 創建高權限 Admin Client (僅用於發布/刪除，以繞過 RLS 寫入延遲)
+supabase_admin: Client = None 
+if 'service_role_key' in st.secrets.supabase:
+    # 只初始化一次 Admin Client 並存在 session state 中
+    if 'supabase_admin' not in st.session_state or st.session_state.supabase_admin is None:
         try:
             url = st.secrets["supabase"]["url"]
-            anon_key = st.secrets["supabase"]["key"] 
-            anon_client = create_client(url, anon_key)
-            
-            #  Admin Client 
-            if 'service_role_key' in st.secrets.supabase:
-                 admin_client = create_client(url, st.secrets.supabase.service_role_key)
-                 
+            key = st.secrets["supabase"]["service_role_key"]
+            st.session_state.supabase_admin = create_client(url, key)
+            st.toast("Admin Client 啟用成功。", icon="🔑")
         except Exception:
-            pass
-    return anon_client, admin_client
-
-# Session State
-if "supabase_anon" not in st.session_state or st.session_state.supabase_anon is None:
-    anon, admin = init_connection_for_page()
-    st.session_state.supabase_anon = anon
-    st.session_state.supabase_admin = admin
-
-# 如果 Anon 連線仍為 None，顯示錯誤並中斷
-if st.session_state.supabase_anon is None:
-    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
-    st.stop()
-    
-# 連線成功
-supabase: Client = st.session_state.supabase_anon
-supabase_admin: Client = st.session_state.supabase_admin
+            # 如果 Admin Client 初始化失敗，仍允許程式運行，但高權限操作可能失敗
+            st.warning("Admin Key 遺失或無效，高權限操作可能失敗。")
+            
+    supabase_admin = st.session_state.supabase_admin
 
 
-# --- Session 狀態處理 (保持不變) ---
+# --- Session 狀態處理 ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -54,8 +45,7 @@ if "role" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-
-# 確定使用者 ID
+# 確定使用者 ID (確保是字串，用於 RLS 比較)
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
@@ -73,17 +63,21 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
+    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
+    # *** 讀取一律使用 supabase (帶有用戶JWT的客戶端) ***
     
     try:
-        # 查詢 1 (主貼文)
+        # 查詢 1 (主貼文): 只查詢 posts 自己的欄位 (RLS 允許所有用戶 SELECT)
         posts_res = supabase.table('posts').select(
             "id, content, created_at, user_id, topic, post_type"
         ).order("created_at", desc=True).execute()
         
         df_posts = pd.DataFrame(posts_res.data)
         
-        # 查詢 2 (作者暱稱和角色)
+        # 查詢 2 (作者暱稱和角色): 只查詢 profiles，不使用關聯查詢
+        if not df_posts.empty:
             user_ids = df_posts['user_id'].unique().tolist()
+            # 必須確保 profiles RLS 允許讀取 username 和 role
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
             
@@ -95,7 +89,7 @@ def fetch_posts_and_reactions():
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
         df_reactions = pd.DataFrame(reactions_res.data)
         
-        # 確保必要的欄位存在
+        # 確保必要的欄位存在，避免後續程式碼崩潰
         if 'username' not in df_merged.columns:
             df_merged['username'] = None
         if 'role' not in df_merged.columns:
@@ -104,7 +98,8 @@ def fetch_posts_and_reactions():
         return df_merged, df_reactions
         
     except Exception as e:
-        st.error(f"新聞牆數據載入失敗。請檢查您的 RLS 策略是否允許 SELECT 'posts' 和 'profiles' 表格。錯誤：{e}")
+        # 如果讀取失敗，顯示錯誤並返回空數據框
+        st.error(f"新聞牆數據載入失敗，請檢查您的 RLS 策略是否允許 SELECT 'posts' 和 'profiles' 表格。錯誤：{e}")
         return pd.DataFrame(), pd.DataFrame()
 
 
@@ -115,7 +110,7 @@ def submit_post(topic, post_type, content):
             st.error("請先登入才能發表貼文。")
             return
             
-        # 修復 RLS 判斷延遲問題
+        # *** 寫入使用 Admin Client (高權限)，或降級回用戶 Client ***
         insert_client = supabase_admin if supabase_admin else supabase 
         
         if insert_client is None:
@@ -135,13 +130,14 @@ def submit_post(topic, post_type, content):
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
-# --- React 處理邏輯  ---
+# --- React 處理邏輯 (最終 RLS 繞過/修復) ---
 def handle_reaction(post_id, reaction_type):
     try:
         if not is_logged_in:
             st.error("請先登入才能進行反應。")
             return
             
+        # *** 寫入使用 Admin Client (高權限)，或降級回用戶 Client ***
         upsert_client = supabase_admin if supabase_admin else supabase 
         
         if upsert_client is None:
@@ -163,6 +159,7 @@ def handle_reaction(post_id, reaction_type):
 def delete_post(post_id):
     if is_admin_or_moderator:
         try:
+            # 刪除操作應始終使用高權限客戶端
             delete_client = supabase_admin if supabase_admin else supabase
             
             if delete_client is None:
@@ -238,7 +235,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 匿名化與角色名稱顯示邏輯 
+    # 1. 匿名化與角色名稱顯示邏輯 (使用雙查詢結果的 username 和 role 欄位)
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
@@ -267,7 +264,7 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
-    #  React 按鈕 
+    # 2. React 按鈕 
     with col_react:
         if is_logged_in:
             react_col1, react_col2, react_col3 = st.columns(3)
@@ -281,7 +278,7 @@ for index, row in posts_df.iterrows():
             # 訪客模式：顯示總計數
             st.caption(f"反應: {summary_text}")
     
-    # 版主刪除按鈕
+    # 3. 版主刪除按鈕
     if is_admin_or_moderator:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
