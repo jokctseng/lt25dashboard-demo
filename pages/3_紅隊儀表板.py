@@ -24,12 +24,14 @@ if "supabase" not in st.session_state or st.session_state.supabase is None:
     st.session_state.supabase = init_connection_for_page()
 
 # 如果連線仍為 None，顯示錯誤並中斷
-if st.session_state.supabase is None:
-    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
-    st.stop()
+supabase = st.session_state.get('supabase')
+
+if supabase is None:
+    st.error("🚨 核心服務連線失敗。頁面已載入，但數據無法獲取。請檢查主頁連線。")    
+else:
+    supabase: Client = supabase
+
     
-# 連線成功，設置客戶端變數
-supabase: Client = st.session_state.supabase
 
 # 確定使用者 ID (用於投票)
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
