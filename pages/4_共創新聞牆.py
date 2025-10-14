@@ -10,6 +10,7 @@ import os
 st.set_page_config(page_title="共創新聞牆")
 
 # --- 連線初始化與權限檢查 (修復內容顯示問題) ---
+supabase = st.session_state.get('supabase')
 
 # 檢查連線狀態
 if supabase is None:
