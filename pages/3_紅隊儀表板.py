@@ -126,7 +126,7 @@ if not df_filtered.empty:
                  labels={'content': '建議/意見'},
                  height=450,
                  color_discrete_map={'未解決': 'red', '部分解決': 'orange', '已解決/有共識': 'green'}) # 確保配色對應顯示名稱
-    st.plotly_chart(fig, width=True)
+    st.plotly_chart(fig, width=True, config={'displayModeBar': False})
 else:
     st.info("根據您的篩選條件，目前沒有任何建議或投票數據。")
 
