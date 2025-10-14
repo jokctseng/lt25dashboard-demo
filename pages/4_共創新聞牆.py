@@ -11,10 +11,14 @@ st.set_page_config(page_title="共創新聞牆")
 
 # --- 連線初始化與權限檢查 ---
 
-# 1. 確保基礎連線存在 
-if "supabase" not in st.session_state or st.session_state.supabase is None:
-    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
-    st.stop()
+supabase = st.session_state.get('supabase')
+
+# 2. 檢查連線狀態
+if supabase is None:
+    st.error("🚨 核心服務連線失敗。頁面已載入，但數據無法獲取。請檢查主頁連線。")
+    
+else:
+    supabase: Client = supabase
 
 # 獲取 Anon/Authenticated Client
 supabase: Client = st.session_state.supabase
