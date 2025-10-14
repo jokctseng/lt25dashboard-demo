@@ -3,36 +3,50 @@ import pandas as pd
 import plotly.express as px
 from supabase import create_client, Client
 import time
-import uuid
-import os
+import uuid 
+import os 
 
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
 # --- 分頁自我連線初始化 ---
 @st.cache_resource(ttl=None) 
-def init_connection_for_page() -> Client:
-    """初始化 Supabase 連線並快取"""
+def init_connection_for_page() -> tuple[Client | None, Client | None]:
+    """初始化 Supabase 連線 (Anon 和 Admin)"""
+    anon_client = None
+    admin_client = None
+    
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
             url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["key"] 
-            return create_client(url, key)
+            anon_key = st.secrets["supabase"]["key"] 
+            anon_client = create_client(url, anon_key)
+            
+            #  Admin Client 
+            if 'service_role_key' in st.secrets.supabase:
+                 admin_client = create_client(url, st.secrets.supabase.service_role_key)
+                 
         except Exception:
-            return None
-    return None 
+            pass
+    return anon_client, admin_client
 
-if "supabase" not in st.session_state or st.session_state.supabase is None:
-    st.session_state.supabase = init_connection_for_page()
+# Session State
+if "supabase_anon" not in st.session_state or st.session_state.supabase_anon is None:
+    anon, admin = init_connection_for_page()
+    st.session_state.supabase_anon = anon
+    st.session_state.supabase_admin = admin
 
-if st.session_state.supabase is None:
+# 如果 Anon 連線仍為 None，顯示錯誤並中斷
+if st.session_state.supabase_anon is None:
     st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
     
 # 連線成功
-supabase: Client = st.session_state.supabase
+supabase: Client = st.session_state.supabase_anon
+supabase_admin: Client = st.session_state.supabase_admin
 
-# --- Session 狀態處理 ---
+
+# --- Session 狀態處理 (保持不變) ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -40,7 +54,8 @@ if "role" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-# 確定使用者 ID 
+
+# 確定使用者 ID
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
@@ -58,7 +73,6 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
-    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
     
     try:
         # 查詢 1 (主貼文)
@@ -69,7 +83,6 @@ def fetch_posts_and_reactions():
         df_posts = pd.DataFrame(posts_res.data)
         
         # 查詢 2 (作者暱稱和角色)
-        if not df_posts.empty:
             user_ids = df_posts['user_id'].unique().tolist()
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
@@ -77,7 +90,6 @@ def fetch_posts_and_reactions():
             df_merged = pd.merge(df_posts, df_profiles, on='user_id', how='left')
             
         else:
-            # 如果沒有貼文，創建空 DataFrame
             df_merged = df_posts
             
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
@@ -92,33 +104,25 @@ def fetch_posts_and_reactions():
         return df_merged, df_reactions
         
     except Exception as e:
-        # 捕獲 APIError，並執行降級策略
-        st.error(f"新聞牆數據載入失敗，已嘗試降級讀取。原因：{e}")
-        try:
-
-             posts_res_fallback = supabase.table('posts').select(
-                 "id, content, created_at, user_id, topic, post_type"
-             ).order("created_at", desc=True).execute()
-             
-             # 為 posts_df 創建一個空的 profiles 
-             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
-             df_posts_fallback['username'] = None
-             df_posts_fallback['role'] = 'user'
-             
-             return df_posts_fallback, pd.DataFrame()
-        except Exception as fallback_e:
-             st.error(f"退化載入失敗：{fallback_e}")
-             return pd.DataFrame(), pd.DataFrame()
+        st.error(f"新聞牆數據載入失敗。請檢查您的 RLS 策略是否允許 SELECT 'posts' 和 'profiles' 表格。錯誤：{e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 
-# --- 貼文提交邏輯---
+# --- 貼文提交邏輯 (最終 RLS 繞過/修復)---
 def submit_post(topic, post_type, content):
     try:
         if not is_logged_in:
             st.error("請先登入才能發表貼文。")
             return
+            
+        # 修復 RLS 判斷延遲問題
+        insert_client = supabase_admin if supabase_admin else supabase 
         
-        supabase.table('posts').insert({
+        if insert_client is None:
+             st.error("發布失敗: 缺少連線客戶端。")
+             return
+
+        insert_client.table('posts').insert({
             "user_id": current_user_id, 
             "topic": topic, 
             "post_type": post_type, 
@@ -138,8 +142,13 @@ def handle_reaction(post_id, reaction_type):
             st.error("請先登入才能進行反應。")
             return
             
-        # 使用 current_user_id 
-        supabase.table('reactions').upsert({
+        upsert_client = supabase_admin if supabase_admin else supabase 
+        
+        if upsert_client is None:
+             st.error("操作失敗: 缺少連線客戶端。")
+             return
+            
+        upsert_client.table('reactions').upsert({
             "post_id": post_id, 
             "user_id": current_user_id, 
             "reaction_type": reaction_type
@@ -154,7 +163,13 @@ def handle_reaction(post_id, reaction_type):
 def delete_post(post_id):
     if is_admin_or_moderator:
         try:
-            supabase.table('posts').delete().eq('id', post_id).execute()
+            delete_client = supabase_admin if supabase_admin else supabase
+            
+            if delete_client is None:
+                 st.error("刪除失敗: 缺少連線客戶端。")
+                 return
+                 
+            delete_client.table('posts').delete().eq('id', post_id).execute()
             st.toast("貼文已刪除。")
             st.cache_data.clear()
             st.experimental_rerun()
@@ -223,7 +238,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 1. 匿名化與角色名稱顯示邏輯 
+    # 匿名化與角色名稱顯示邏輯 
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
@@ -252,7 +267,7 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
-    # 2. React 按鈕 
+    #  React 按鈕 
     with col_react:
         if is_logged_in:
             react_col1, react_col2, react_col3 = st.columns(3)
@@ -266,7 +281,7 @@ for index, row in posts_df.iterrows():
             # 訪客模式：顯示總計數
             st.caption(f"反應: {summary_text}")
     
-    # 3. 版主刪除按鈕
+    # 版主刪除按鈕
     if is_admin_or_moderator:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
