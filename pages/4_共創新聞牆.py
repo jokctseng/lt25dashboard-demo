@@ -9,8 +9,6 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 連線初始化與權限檢查 ---
-
 supabase = st.session_state.get('supabase')
 
 # 2. 檢查連線狀態
@@ -20,21 +18,21 @@ if supabase is None:
 else:
     supabase: Client = supabase
 
-# 獲取 Anon/Authenticated Client
-supabase: Client = st.session_state.supabase
+# 獲取 Anon/Authenticated Client (用於所有讀取操作和低權限寫入)
+supabase: Client = st.session_state.supabase 
 
 # Admin Client 
 supabase_admin: Client = None 
 if 'service_role_key' in st.secrets.supabase:
+    # 只初始化一次 Admin Client 並存在 session state 中
     if 'supabase_admin' not in st.session_state or st.session_state.supabase_admin is None:
         try:
             url = st.secrets["supabase"]["url"]
             key = st.secrets["supabase"]["service_role_key"]
             st.session_state.supabase_admin = create_client(url, key)
-            st.toast("Admin Client 啟用成功。", icon="🔑")
         except Exception:
             st.session_state.supabase_admin = None # 確保失敗時為 None
-
+    
     supabase_admin = st.session_state.supabase_admin
 
 
@@ -66,7 +64,6 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 def fetch_posts_and_reactions():
     """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
     
-    # 修正點 1: 定義一個標準的空 reactions DataFrame 結構
     empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
 
     try:
@@ -94,8 +91,9 @@ def fetch_posts_and_reactions():
         df_reactions = pd.DataFrame(reactions_res.data)
         
         if df_reactions.empty:
-            df_reactions = empty_reactions_df 
+            df_reactions = empty_reactions_df.copy() # 使用 .copy() 避免緩存問題
 
+        # 確保必要的欄位存在
         if 'username' not in df_merged.columns:
             df_merged['username'] = None
         if 'role' not in df_merged.columns:
@@ -105,7 +103,8 @@ def fetch_posts_and_reactions():
         
     except Exception as e:
         st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略是否允許 SELECT 'posts' 和 'profiles'。錯誤：{e}")
-        return pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role']), empty_reactions_df
+        empty_posts_df = pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role'])
+        return empty_posts_df, empty_reactions_df.copy()
 
 
 # --- 貼文提交邏輯---
@@ -115,7 +114,7 @@ def submit_post(topic, post_type, content):
             st.error("請先登入才能發表貼文。")
             return
             
-    
+        # 寫入或降級
         insert_client = supabase_admin if supabase_admin else supabase 
         
         if insert_client is None:
@@ -135,7 +134,7 @@ def submit_post(topic, post_type, content):
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
-# --- React 處理邏輯  ---
+# --- React 處理邏輯 ---
 def handle_reaction(post_id, reaction_type):
     try:
         if not is_logged_in:
@@ -215,6 +214,7 @@ if not reactions_df.empty and not posts_df.empty:
     if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
         
+        # 合併 reactions 數據和 posts 的主題
         merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id')
         
         if not merged_df.empty:
@@ -238,7 +238,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 名化與角色名稱顯示邏輯 
+    # 匿名化與角色名稱顯示邏輯 
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
@@ -267,10 +267,10 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
-    # React 
+    # React 按鈕 
     with col_react:
         if is_logged_in:
-            react_col1, react_col2, react_col3 = st.columns([1, 1, 1]) 
+            react_col1, react_col2, react_col3 = st.columns([1, 1, 1])
             if react_col1.button("👍", key=f"sup_{row['id']}"):
                 handle_reaction(row['id'], '支持')
             if react_col2.button("😐", key=f"neu_{row['id']}"):
@@ -281,7 +281,7 @@ for index, row in posts_df.iterrows():
             # 訪客模式：顯示總計數
             st.caption(f"反應: {summary_text}")
     
-    # 3. 版主刪除按鈕
+    # 版主刪除按鈕
     if is_admin_or_moderator:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
