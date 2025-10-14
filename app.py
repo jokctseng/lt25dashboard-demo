@@ -4,7 +4,7 @@ import pandas as pd
 import os 
 import time
 
-# 配置與初始化 ---
+# --- 0. 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
@@ -108,29 +108,21 @@ st.warning("""
 """)
 # --- 置頂公告區塊 結束 ---
 
-# 移除 @st.cache_resource，強制每次執行時都創建新的客戶端
-def init_connection(is_admin=False) -> Client | None:
-    """初始化 Supabase 連線 (無緩存)"""
+def init_connection(is_admin=False) -> Client:
+    """初始化 Supabase 連線 """
     
-    if "supabase" not in st.secrets or "url" not in st.secrets["supabase"]:
-        return None
-        
     try:
         config_section = st.secrets["supabase"]
         url = config_section["url"]
         
         if is_admin:
-            key = config_section.get("service_role_key")
+            key = config_section["service_role_key"] 
         else:
-            key = config_section.get("anon_key")
-
-        if key:
-            return create_client(url, key)
-        else:
-            return None
-    except Exception:
-        # 連線創建失敗
-        return None
+            key = config_section["key"] 
+            
+        return create_client(url, key)
+    except Exception as e:
+        return None 
 
 # 確保連線初始化並儲存到狀態中 (連線只執行一次)
 if st.session_state.supabase is None:
@@ -144,22 +136,21 @@ supabase = st.session_state.supabase
 
 # --- RLS Session 狀態恢復機制  ---
 if is_connected and st.session_state.user is None:
+    # 刷新 JWT
     try:
         session = supabase.auth.get_session()
         if session and session.user:
-            # 恢復 Session 
+            # 恢復 Session 成功
             st.session_state.user = session.user
             fetch_user_profile(session.user.id) 
             st.rerun() # 刷新頁面以更新登入狀態
     except Exception:
-        # 如果手機或瀏覽器 Session 無效，保持未登入狀態
-        pass 
+        pass # Session 無效或過期，保持未登入狀態
 
 
 # --- 認證與權限檢查 ---
 
 def fetch_user_profile(user_id):
-    """從 profiles 表格獲取使用者角色與暱稱"""
     try:
         if st.session_state.supabase:
             response = st.session_state.supabase.table('profiles').select("role, username").eq('id', user_id).single().execute()
@@ -170,7 +161,7 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查"""
+    """處理使用者登入/登出和角色檢查 """
     
     if not is_connected:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
@@ -196,7 +187,6 @@ def authenticate_user():
                         fetch_user_profile(user.user.id)
                         st.rerun()
                 except Exception as e:
-                    # 提示清除緩存
                     st.error(f"認證失敗: {e}")
                     st.info("如果問題持續，請嘗試在瀏覽器中清除該網站的緩存和本地存儲。")
         
@@ -228,7 +218,6 @@ def authenticate_user():
 
 # --- 自動儲存 ---
 def auto_update_username(new_username):
-    """無按鈕自動儲存暱稱"""
     try:
         if st.session_state.user and st.session_state.supabase:
             st.session_state.supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
@@ -250,6 +239,7 @@ def main():
             {"title": "致謝與授權", "icon": "🤝", "desc": "查看專案開發團隊、貢獻者名單與程式碼授權說明。"},
         ]
         
+        st.subheader("平台功能總覽")
         st.markdown("---")
 
         cols = st.columns(2)
