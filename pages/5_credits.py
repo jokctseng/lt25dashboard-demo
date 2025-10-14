@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd 
 st.set_page_config(page_title="致謝與授權")
 
-st.title("🤝 專案致謝與貢獻者名單 (Credits)")
+st.title("🤝 專案致謝與貢獻者名單")
 st.caption("本平台能夠順利上線，感謝所有貢獻者的時間、專業與支持。")
 
 st.markdown("---")
