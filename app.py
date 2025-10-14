@@ -3,93 +3,15 @@ from supabase import create_client, Client
 import pandas as pd
 import os 
 
-# --- 配置與初始化 ---
+# --- 0. 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# app.py 內加入 Custom CSS 
-st.markdown(
-    """
-    <style>
-    /* 隱藏元素 */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* 原角卡片風格 */
-    .stButton>button {
-        border-radius: 12px;
-        transition: background-color 0.3s;
-    }
-    
-    /* 輸入框、選單及數據框 */
-    .stSelectbox, .stTextInput, .stTextArea, .stExpander, [data-testid="stDataFrame"], .stTabs {
-        border-radius: 12px;
-        background-color: #282828; 
-        padding: 10px;
-    }
+st.title("全國青年會議協作與意見彙整平台") 
 
-    /* 內容區域邊距 */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
-    }
-    
-    /* 側邊欄 */
-    [data-testid="stSidebar"] {
-        background-color: #191414; 
-        border-right: 3px solid #1DB954; 
-    }
-
-    /* 標題層次 */
-    h1, h2, h3, h4 {
-        color: #FFFFFF !important; 
-        font-weight: 600;
-    }
-    
-    /* 版權聲明 Footer  */
-    .dark-footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        background-color: #191414; 
-        color: #AAAAAA; 
-        text-align: center;
-        padding: 8px 0;
-        font-size: 0.75rem;
-        z-index: 10;
-        border-top: 1px solid #282828;
-    }
-    .credit-link {
-        color: #1DB954; 
-        text-decoration: none;
-        margin: 0 5px;
-        font-weight: bold;
-    }
-    .credit-text {
-        color: #AAAAAA;
-        margin: 0 10px;
-    }
-
-    </style>
-    <meta name="robots" content="noindex, nofollow">
-    
-    <div class="dark-footer">
-        版權所有 © 2025 青年代號：GenAI 協作平台｜<span class="credit-text">技術支援：</span> 
-        <a href="https://jokctseng.github.io" class="credit-link">小工</a> 
-        <span class="credit-text">｜完整致謝：請查看致謝與授權頁面</span> 
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-st.markdown("---")
-st.title("全國青年會議協作與意見彙整平台")
-
-# --- Session State  ---
+# ---  Session State  ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -98,34 +20,39 @@ if "username" not in st.session_state:
     st.session_state.username = None
 if "supabase" not in st.session_state:
     st.session_state.supabase = None 
+if "supabase_admin" not in st.session_state:
+    st.session_state.supabase_admin = None
 
-# --- 置頂公告區塊 ---
-st.warning("""
-🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，輸入意見及投票需註冊並以電郵驗證，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
-為保障個資，強烈建議您不要在留言內容中透露任何個人資訊。
-""")
-# --- 置頂公告區塊 結束 ---
 
+# --- Supabase 連線邏輯 ---
 @st.cache_resource
-def init_connection() -> Client:
-    """連線並快取"""
+def init_connection(is_admin=False) -> Client:
+    """初始化 Supabase 連線 (可選擇 Admin 或 Anon)"""
+    config_section = st.secrets["supabase"]
+    url = config_section["url"]
     
-    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
-        try:
-            url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["key"] 
-            return create_client(url, key)
-        except Exception:
+    if is_admin:
+        if 'service_role_key' in config_section:
+            return create_client(url, config_section["service_role_key"])
+        else:
+            st.warning("Admin Key 遺失，無法執行高權限操作。")
             return None
-    return None 
+    else:
+        return create_client(url, config_section["anon_key"])
 
-supabase = init_connection()
-st.session_state.supabase = supabase
+# 連線初始
+if st.session_state.supabase is None:
+    try:
+        st.session_state.supabase = init_connection(is_admin=False)
+        st.session_state.supabase_admin = init_connection(is_admin=True) # 初始化 Admin Client
+    except Exception as e:
+        st.error(f"連線初始化失敗：請檢查 secrets.toml 配置。")
+
 is_connected = st.session_state.supabase is not None
+supabase = st.session_state.supabase
 
 
 # --- 認證與權限檢查 ---
-
 def fetch_user_profile(user_id):
     """從 profiles 表格獲取使用者角色與暱稱"""
     try:
@@ -136,21 +63,13 @@ def fetch_user_profile(user_id):
     except Exception:
         st.session_state.role = "user"
         st.session_state.username = None
-        
-if is_connected and st.session_state.user is None:
-    try:
-        session = st.session_state.supabase.auth.get_session()
-        if session and session.user:
-            st.session_state.user = session.user
-            fetch_user_profile(session.user.id)
-            st.experimental_rerun()
-    except Exception:
-        pass
+
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
+    """處理使用者登入/登出和角色檢查 """
     
     if not is_connected:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
+        return
         
     elif st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
@@ -170,7 +89,7 @@ def authenticate_user():
                         user = st.session_state.supabase.auth.sign_in_with_password({"email": email, "password": password})
                         st.session_state.user = user.user
                         fetch_user_profile(user.user.id)
-                        st.experimental_rerun()
+                        st.rerun() # 
                 except Exception as e:
                     st.error(f"認證失敗: {e}")
         
@@ -180,7 +99,6 @@ def authenticate_user():
         user_email = st.session_state.user.email
         display_name = st.session_state.username
         
-        # 決定問候語的顯示名稱
         if user_role == 'system_admin':
             greeting_name = f"管理員 - {display_name or user_email}"
         elif user_role == 'moderator':
@@ -198,12 +116,12 @@ def authenticate_user():
             st.session_state.user = None
             st.session_state.role = "guest"
             st.session_state.username = None
-            st.experimental_rerun()
+            st.rerun()
         
 
 # --- 自動儲存 ---
 def auto_update_username(new_username):
-    """無按鈕自動儲存暱稱"""
+
     try:
         if st.session_state.user and st.session_state.supabase:
             st.session_state.supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
@@ -215,9 +133,16 @@ def auto_update_username(new_username):
 # --- 儀表板主邏輯 ---
 def main():
     
+    st.markdown("""<style>header {visibility: hidden;}</style>""", unsafe_allow_html=True)
+    
+    # 置頂公告區塊 (這裡保持不變)
+    st.warning("""
+    🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，輸入意見及投票需註冊並以電郵驗證，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
+    為保障個資，強烈建議您不要在留言內容中透露任何個人資訊。
+    """)
+    
+    # 頁面內容和卡片 (只在未登入時顯示)
     if st.session_state.user is None:
-        
-        # --- 頁面摘要卡片 ---
         page_summary = [
             {"title": "大會資料", "icon": "📄", "desc": "查看活動議程、規則與行為準則，掌握活動基本資訊。"},
             {"title": "補充資訊", "icon": "🔗", "desc": "查閱核心政策、數據圖表與統計分析，快速了解背景知識。"},
@@ -234,7 +159,6 @@ def main():
         for i, item in enumerate(page_summary):
             col = cols[i % 2]
             
-            # 使用 HTML 創建圓角卡片
             card_html = f"""
             <div style="
                 background-color: #383838; 
@@ -249,7 +173,7 @@ def main():
             """
             col.markdown(card_html, unsafe_allow_html=True)
         
-    # 個人設定與 Admin 提示 (只在登入後顯示)
+    # 個人設定與 Admin 提示 
     if st.session_state.user is not None:
         st.sidebar.markdown("---")
         st.sidebar.subheader("👤 個人設定")
