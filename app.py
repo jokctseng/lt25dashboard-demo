@@ -4,13 +4,13 @@ import pandas as pd
 import os 
 import time
 
-
+# --- 0. 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
+# [CSS 和 Footer 樣式不變，略過]
 st.markdown(
     """
     <style>
@@ -18,7 +18,63 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* ... (其他 CSS 樣式保持不變) ... */
+    /* 原角卡片風格 */
+    .stButton>button {
+        border-radius: 12px;
+        transition: background-color 0.3s;
+    }
+    
+    /* 輸入框、選單及數據框 */
+    .stSelectbox, .stTextInput, .stTextArea, .stExpander, [data-testid="stDataFrame"], .stTabs {
+        border-radius: 12px;
+        background-color: #282828; 
+        padding: 10px;
+    }
+
+    /* 內容區域邊距 */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+    
+    /* 側邊欄 */
+    [data-testid="stSidebar"] {
+        background-color: #191414; 
+        border-right: 3px solid #1DB954; 
+    }
+
+    /* 標題層次 */
+    h1, h2, h3, h4 {
+        color: #FFFFFF !important; 
+        font-weight: 600;
+    }
+    
+    /* 版權聲明 Footer  */
+    .dark-footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #191414; 
+        color: #AAAAAA; 
+        text-align: center;
+        padding: 8px 0;
+        font-size: 0.75rem;
+        z-index: 10;
+        border-top: 1px solid #282828;
+    }
+    .credit-link {
+        color: #1DB954; 
+        text-decoration: none;
+        margin: 0 5px;
+        font-weight: bold;
+    }
+    .credit-text {
+        color: #AAAAAA;
+        margin: 0 10px;
+    }
 
     </style>
     <meta name="robots" content="noindex, nofollow">
@@ -53,45 +109,45 @@ st.warning("""
 """)
 # --- 置頂公告區塊 結束 ---
 
-@st.cache_resource
-def init_connection(is_admin=False) -> Client:
-    """初始化 Supabase 連線 (不處理 try/except，讓錯誤浮現)"""
+# 移除 @st.cache_resource，強制每次執行時都創建新的客戶端
+def init_connection(is_admin=False) -> Client | None:
+    """初始化 Supabase 連線 (無緩存)"""
     
-    config_section = st.secrets["supabase"]
-    url = config_section["url"]
-    
-    if is_admin:
-        # 如果 key 不存在，這裡會自動拋出 KeyError
-        key = config_section["service_role_key"] 
-    else:
-        # 如果 key 不存在，這裡會自動拋出 KeyError
-        key = config_section["anon_key"]
+    if "supabase" not in st.secrets or "url" not in st.secrets["supabase"]:
+        return None
         
-    return create_client(url, key)
+    try:
+        config_section = st.secrets["supabase"]
+        url = config_section["url"]
+        
+        if is_admin:
+            key = config_section.get("service_role_key")
+        else:
+            key = config_section.get("anon_key")
 
+        if key:
+            return create_client(url, key)
+        else:
+            return None
+    except Exception:
+        # 連線創建失敗
+        return None
 
 # 確保連線初始化並儲存到狀態中 (連線只執行一次)
-try:
-    if st.session_state.supabase is None:
-        st.session_state.supabase = init_connection(is_admin=False)
-    if st.session_state.supabase_admin is None:
-        st.session_state.supabase_admin = init_connection(is_admin=True)
+if st.session_state.supabase is None:
+    st.session_state.supabase = init_connection(is_admin=False)
+if st.session_state.supabase_admin is None:
+    st.session_state.supabase_admin = init_connection(is_admin=True)
 
-    is_connected = st.session_state.supabase is not None
-    supabase = st.session_state.supabase
-    
-except Exception as e:
-    is_connected = False
-    supabase = None
-    st.error("🚨 核心連線初始化失敗。請檢查 Secrets 檔案中的 URL, anon_key, service_role_key 是否正確。")
-    st.session_state.supabase = None
-    st.session_state.supabase_admin = None
+is_connected = st.session_state.supabase is not None
+supabase = st.session_state.supabase
 
 
-# --- RLS Session 狀態恢復機制 ---
+# --- RLS Session 狀態恢復機制 (最終修正: 確保在連線成功後才恢復) ---
 if is_connected and st.session_state.user is None:
+    # 這是解決連線狀態丟失的最終方案，直接在主頁面檢查 Session
     try:
-        # 刷新 JWT
+        # 嘗試從 Local Storage 恢復 Session，這會刷新 JWT
         session = supabase.auth.get_session()
         if session and session.user:
             # 恢復 Session 成功
@@ -99,7 +155,8 @@ if is_connected and st.session_state.user is None:
             fetch_user_profile(session.user.id) 
             st.rerun() # 刷新頁面以更新登入狀態
     except Exception:
-        pass # Session 無效或過期，保持未登入狀態
+        # 如果手機或瀏覽器 Session 無效，保持未登入狀態
+        pass 
 
 
 # --- 認證與權限檢查 ---
@@ -116,7 +173,7 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查"""
+    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
     
     if not is_connected:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
@@ -142,7 +199,9 @@ def authenticate_user():
                         fetch_user_profile(user.user.id)
                         st.rerun()
                 except Exception as e:
+                    # 提示清除緩存
                     st.error(f"認證失敗: {e}")
+                    st.info("如果問題持續，請嘗試在瀏覽器中清除該網站的緩存和本地存儲。")
         
     else:
         # 已登入 
@@ -186,7 +245,7 @@ def main():
     
     if st.session_state.user is None:
         st.subheader("平台功能總覽")
-
+        # ... (卡片邏輯保持不變) ...
         page_summary = [
             {"title": "大會資料", "icon": "📄", "desc": "查看活動議程、規則與行為準則，掌握活動基本資訊。"},
             {"title": "補充資訊", "icon": "🔗", "desc": "查閱核心政策、數據圖表與統計分析，快速了解背景知識。"},
