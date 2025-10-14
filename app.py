@@ -4,13 +4,12 @@ import pandas as pd
 import os 
 import time
 
-# --- 0. 配置與初始化 ---
+# 配置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# [CSS 和 Footer 樣式不變，略過]
 st.markdown(
     """
     <style>
@@ -18,7 +17,7 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 原角卡片風格 */
+    /* 圓角卡片風格 */
     .stButton>button {
         border-radius: 12px;
         transition: background-color 0.3s;
@@ -51,7 +50,7 @@ st.markdown(
         font-weight: 600;
     }
     
-    /* 版權聲明 Footer  */
+    /* Footer  */
     .dark-footer {
         position: fixed;
         left: 0;
@@ -143,14 +142,12 @@ is_connected = st.session_state.supabase is not None
 supabase = st.session_state.supabase
 
 
-# --- RLS Session 狀態恢復機制 (最終修正: 確保在連線成功後才恢復) ---
+# --- RLS Session 狀態恢復機制  ---
 if is_connected and st.session_state.user is None:
-    # 這是解決連線狀態丟失的最終方案，直接在主頁面檢查 Session
     try:
-        # 嘗試從 Local Storage 恢復 Session，這會刷新 JWT
         session = supabase.auth.get_session()
         if session and session.user:
-            # 恢復 Session 成功
+            # 恢復 Session 
             st.session_state.user = session.user
             fetch_user_profile(session.user.id) 
             st.rerun() # 刷新頁面以更新登入狀態
@@ -173,7 +170,7 @@ def fetch_user_profile(user_id):
         st.session_state.username = None
 
 def authenticate_user():
-    """處理使用者登入/登出和角色檢查 (只處理側邊欄顯示)"""
+    """處理使用者登入/登出和角色檢查"""
     
     if not is_connected:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
