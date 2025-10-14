@@ -126,12 +126,12 @@ if not df_filtered.empty:
                  labels={'content': '建議/意見'},
                  height=450,
                  color_discrete_map={'未解決': 'red', '部分解決': 'orange', '已解決/有共識': 'green'}) # 確保配色對應顯示名稱
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width=True)
 else:
     st.info("根據您的篩選條件，目前沒有任何建議或投票數據。")
 
 
-# --- 4. 建議列表與投票區 ---
+# --- 建議列表與投票區 ---
 
 def handle_vote(suggestion_id, vote_type):
     """處理投票邏輯，將顯示名稱轉換為 Supabase 內部名稱"""
@@ -141,7 +141,7 @@ def handle_vote(suggestion_id, vote_type):
         
     try:
         if vote_type == '已解決/有共識':
-             supabase_vote_type = '已解決' # <-- 傳給 Supabase 儲存的淨值
+             supabase_vote_type = '已解決'
         else:
              supabase_vote_type = vote_type
 
@@ -261,7 +261,7 @@ if is_admin_or_moderator:
                     invalid_categories = df_upload[~df_upload['cate'].isin(VALID_CATEGORIES)]
                     if not invalid_categories.empty:
                         st.error("類別驗證失敗：`cate` 欄位值必須是 '建議', '洞察', 或 '其他'。")
-                        st.dataframe(invalid_categories, use_container_width=True)
+                        st.dataframe(invalid_categories, width=True)
                         st.stop()
 
                     data_to_insert = df_upload.to_dict('records')
