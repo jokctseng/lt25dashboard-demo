@@ -9,42 +9,32 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 分頁自我連線初始化 ---
-@st.cache_resource(ttl=None) 
-def init_connection_for_page() -> tuple[Client | None, Client | None]:
-    """初始化 Supabase 連線 (Anon 和 Admin)"""
-    anon_client = None
-    admin_client = None
-    
-    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+# --- 連線初始化與權限檢查 (修復內容顯示問題) ---
+
+# 1. 確保基礎連線存在 (由 app.py 提供)
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
+    st.stop()
+
+# 獲取 Anon/Authenticated Client (用於所有讀取操作)
+# 這個 client 帶有用戶的 JWT，RLS 讀取是透過它進行的
+supabase: Client = st.session_state.supabase
+
+# 2. 創建高權限 Admin Client (僅用於發布/刪除，以繞過 RLS 寫入延遲)
+supabase_admin: Client = None 
+if 'service_role_key' in st.secrets.supabase:
+    # 只初始化一次 Admin Client 並存在 session state 中
+    if 'supabase_admin' not in st.session_state or st.session_state.supabase_admin is None:
         try:
             url = st.secrets["supabase"]["url"]
-            anon_key = st.secrets["supabase"]["anon_key"] 
-            anon_client = create_client(url, anon_key)
-            
-            # 嘗試創建 Admin Client (用於高權限操作，以繞過 RLS 延遲)
-            if 'service_role_key' in st.secrets.supabase:
-                 admin_client = create_client(url, st.secrets.supabase.service_role_key)
-                 
+            key = st.secrets["supabase"]["service_role_key"]
+            st.session_state.supabase_admin = create_client(url, key)
+            st.toast("Admin Client 啟用成功。", icon="🔑")
         except Exception:
-            pass
-    return anon_client, admin_client
-
-# 檢查 Session State 或初始化
-if "supabase" not in st.session_state or st.session_state.supabase is None:
-    # 這裡必須檢查 'supabase_anon' 和 'supabase_admin' 的狀態並初始化
-    anon, admin = init_connection_for_page()
-    st.session_state.supabase_anon = anon
-    st.session_state.supabase_admin = admin
-
-# 如果 Anon 連線仍為 None，顯示錯誤並中斷
-if st.session_state.supabase_anon is None:
-    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
-    st.stop()
-    
-# 連線成功
-supabase: Client = st.session_state.supabase_anon
-supabase_admin: Client = st.session_state.supabase_admin
+            # 如果 Admin Client 初始化失敗，仍允許程式運行，但高權限操作可能失敗
+            st.warning("Admin Key 遺失或無效，高權限操作可能失敗。")
+            
+    supabase_admin = st.session_state.supabase_admin
 
 
 # --- Session 狀態處理 ---
@@ -55,8 +45,7 @@ if "role" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-
-# 確定使用者 ID (確保是字串，以進行 RLS 檢查)
+# 確定使用者 ID (確保是字串，用於 RLS 比較)
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
@@ -75,6 +64,7 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
     """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
+    # *** 讀取一律使用 supabase (帶有用戶JWT的客戶端) ***
     
     try:
         # 查詢 1 (主貼文): 只查詢 posts 自己的欄位 (RLS 允許所有用戶 SELECT)
@@ -87,6 +77,7 @@ def fetch_posts_and_reactions():
         # 查詢 2 (作者暱稱和角色): 只查詢 profiles，不使用關聯查詢
         if not df_posts.empty:
             user_ids = df_posts['user_id'].unique().tolist()
+            # 必須確保 profiles RLS 允許讀取 username 和 role
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
             
@@ -107,24 +98,9 @@ def fetch_posts_and_reactions():
         return df_merged, df_reactions
         
     except Exception as e:
-        # 捕獲 APIError，並執行降級策略 (只查詢 posts，不關聯 profiles)
-        st.error(f"新聞牆載入失敗，已嘗試降級讀取。原因：{e}")
-        try:
-             # 降級：只選擇 posts 的欄位，不進行 JOIN
-             posts_res_fallback = supabase.table('posts').select(
-                 "id, content, created_at, user_id, topic, post_type"
-             ).order("created_at", desc=True).execute()
-             
-             # 為 posts_df 創建一個空的 profiles 欄位以避免後續程式碼崩潰
-             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
-             df_posts_fallback['username'] = None
-             df_posts_fallback['role'] = 'user'
-             
-             # 返回退化數據和空的 reactions
-             return df_posts_fallback, pd.DataFrame()
-        except Exception as fallback_e:
-             st.error(f"退化載入失敗：{fallback_e}")
-             return pd.DataFrame(), pd.DataFrame()
+        # 如果讀取失敗，顯示錯誤並返回空數據框
+        st.error(f"新聞牆數據載入失敗，請檢查您的 RLS 策略是否允許 SELECT 'posts' 和 'profiles' 表格。錯誤：{e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 
 # --- 貼文提交邏輯 (最終 RLS 繞過/修復)---
@@ -149,7 +125,8 @@ def submit_post(topic, post_type, content):
         }).execute()
         
         st.toast("貼文已成功發布！")
-        st.rerun() # 修正點 1: 替換 st.experimental_rerun()
+        st.cache_data.clear()
+        st.experimental_rerun()
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
@@ -192,7 +169,7 @@ def delete_post(post_id):
             delete_client.table('posts').delete().eq('id', post_id).execute()
             st.toast("貼文已刪除。")
             st.cache_data.clear()
-            st.rerun() # 修正點 2: 替換 st.experimental_rerun()
+            st.experimental_rerun()
         except Exception as e:
             st.error(f"刪除失敗: {e}")
 
@@ -235,7 +212,6 @@ if not reactions_df.empty and not posts_df.empty:
     if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
         
-        # 這裡不需要複雜的合併，數據已經足夠
         merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id')
         
         if not merged_df.empty:
