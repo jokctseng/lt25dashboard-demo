@@ -9,40 +9,29 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 分頁自我連線初始化 ---
-@st.cache_resource(ttl=None) 
-def init_connection_for_page() -> tuple[Client | None, Client | None]:
-    """初始化 Supabase 連線 (Anon 和 Admin)"""
-    anon_client = None
-    admin_client = None
-    
-    if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
+# --- 連線初始化與權限檢查 ---
+
+# 1. 確保基礎連線存在 
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
+    st.stop()
+
+# 獲取 Anon/Authenticated Client
+supabase: Client = st.session_state.supabase
+
+# Admin Client 
+supabase_admin: Client = None 
+if 'service_role_key' in st.secrets.supabase:
+    if 'supabase_admin' not in st.session_state or st.session_state.supabase_admin is None:
         try:
             url = st.secrets["supabase"]["url"]
-            anon_key = st.secrets["supabase"]["key"] 
-            anon_client = create_client(url, anon_key)
-            
-            # Admin Client 
-            if 'service_role_key' in st.secrets.supabase:
-                 admin_client = create_client(url, st.secrets.supabase.service_role_key)
-                 
+            key = st.secrets["supabase"]["service_role_key"]
+            st.session_state.supabase_admin = create_client(url, key)
+            st.toast("Admin Client 啟用成功。", icon="🔑")
         except Exception:
-            pass
-    return anon_client, admin_client
+            st.session_state.supabase_admin = None # 確保失敗時為 None
 
-# Session State 
-if "supabase" not in st.session_state or st.session_state.supabase is None:
-    anon, admin = init_connection_for_page()
-    st.session_state.supabase = anon
-    st.session_state.supabase_admin = admin
-
-if st.session_state.supabase is None:
-    st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
-    st.stop()
-    
-# 連線成功
-supabase: Client = st.session_state.supabase
-supabase_admin: Client = st.session_state.supabase_admin
+    supabase_admin = st.session_state.supabase_admin
 
 
 # --- Session 狀態處理 ---
@@ -52,7 +41,6 @@ if "role" not in st.session_state:
     st.session_state.role = "guest"
 if "username" not in st.session_state:
     st.session_state.username = None
-
 
 # 確定使用者 ID 
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
@@ -74,6 +62,9 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 def fetch_posts_and_reactions():
     """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
     
+    # 修正點 1: 定義一個標準的空 reactions DataFrame 結構
+    empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
+
     try:
         # 查詢 1 (主貼文)
         posts_res = supabase.table('posts').select(
@@ -84,9 +75,11 @@ def fetch_posts_and_reactions():
         
         # 查詢 2 (作者暱稱和角色)
         if not df_posts.empty:
-            user_ids = df_posts['user_id'].unique().tolist() # <--- 錯誤發生在這附近
+            df_posts['user_id'] = df_posts['user_id'].astype(str)
+            user_ids = df_posts['user_id'].unique().tolist()
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
+            df_profiles['user_id'] = df_profiles['user_id'].astype(str)
             
             df_merged = pd.merge(df_posts, df_profiles, on='user_id', how='left')
             
@@ -96,6 +89,9 @@ def fetch_posts_and_reactions():
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
         df_reactions = pd.DataFrame(reactions_res.data)
         
+        if df_reactions.empty:
+            df_reactions = empty_reactions_df 
+
         if 'username' not in df_merged.columns:
             df_merged['username'] = None
         if 'role' not in df_merged.columns:
@@ -104,22 +100,8 @@ def fetch_posts_and_reactions():
         return df_merged, df_reactions
         
     except Exception as e:
-        st.error(f"新聞牆數據載入失敗，已嘗試降級讀取。原因：{e}")
-        try:
-             # 降級
-             posts_res_fallback = supabase.table('posts').select(
-                 "id, content, created_at, user_id, topic, post_type"
-             ).order("created_at", desc=True).execute()
-             
-             # 為 posts_df 建一個空的 profiles 
-             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
-             df_posts_fallback['username'] = None
-             df_posts_fallback['role'] = 'user'
-             
-             return df_posts_fallback, pd.DataFrame()
-        except Exception as fallback_e:
-             st.error(f"退化載入失敗：{fallback_e}")
-             return pd.DataFrame(), pd.DataFrame()
+        st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略是否允許 SELECT 'posts' 和 'profiles'。錯誤：{e}")
+        return pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role']), empty_reactions_df
 
 
 # --- 貼文提交邏輯---
@@ -129,6 +111,7 @@ def submit_post(topic, post_type, content):
             st.error("請先登入才能發表貼文。")
             return
             
+    
         insert_client = supabase_admin if supabase_admin else supabase 
         
         if insert_client is None:
@@ -148,7 +131,7 @@ def submit_post(topic, post_type, content):
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
-# --- React 處理邏輯 ---
+# --- React 處理邏輯  ---
 def handle_reaction(post_id, reaction_type):
     try:
         if not is_logged_in:
@@ -221,10 +204,10 @@ if selected_topic != '所有主題' and not posts_df.empty:
 st.subheader("📈 主題意見群聚圖（即時）")
 
 if not reactions_df.empty and not posts_df.empty:
+    # 確保 ID 類型一致以進行合併
     posts_df['id'] = posts_df['id'].astype(str)
     reactions_df['post_id'] = reactions_df['post_id'].astype(str)
 
-    # 必須確保 posts_df 包含 topic 欄位
     if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
         
@@ -251,7 +234,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    #  匿名化與角色名稱顯示邏輯 
+    # 名化與角色名稱顯示邏輯 
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
@@ -280,10 +263,10 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
         st.caption(summary_text)
 
-    # 2. React 按鈕 
+    # React 
     with col_react:
         if is_logged_in:
-            react_col1, react_col2, react_col3 = st.columns(3)
+            react_col1, react_col2, react_col3 = st.columns([1, 1, 1]) 
             if react_col1.button("👍", key=f"sup_{row['id']}"):
                 handle_reaction(row['id'], '支持')
             if react_col2.button("😐", key=f"neu_{row['id']}"):
