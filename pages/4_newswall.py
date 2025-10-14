@@ -102,14 +102,13 @@ def fetch_posts_and_reactions():
 # --- 貼文提交邏輯---
 def submit_post(topic, post_type, content):
     try:
-        if st.session_state.user is None:
+        if not is_logged_in:
             st.error("請先登入才能發表貼文。")
             return
         
-        user_id_str = str(st.session_state.user.id) 
         
         supabase.table('posts').insert({
-            "user_id": user_id_str, 
+            "user_id": current_user_id, 
             "topic": topic, 
             "post_type": post_type, 
             "content": content
