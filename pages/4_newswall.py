@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 from supabase import create_client, Client
 import time
-import uuid 
-
+import uuid
+import os
 
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
@@ -22,11 +22,9 @@ def init_connection_for_page() -> Client:
             return None
     return None 
 
-# 檢查 Session State 或初始化
 if "supabase" not in st.session_state or st.session_state.supabase is None:
     st.session_state.supabase = init_connection_for_page()
 
-# 如果連線仍為 None，顯示錯誤並中斷
 if st.session_state.supabase is None:
     st.error("🚨 無法建立 Supabase 連線。請檢查 secrets 配置或重新載入主頁。")
     st.stop()
@@ -34,7 +32,7 @@ if st.session_state.supabase is None:
 # 連線成功
 supabase: Client = st.session_state.supabase
 
-
+# --- Session 狀態處理 ---
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
@@ -42,9 +40,8 @@ if "role" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-
 # 確定使用者 ID 
-current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
+current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
 
@@ -77,16 +74,16 @@ def fetch_posts_and_reactions():
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
             
-            # 將 profiles 數據合併到 posts 數據中
             df_merged = pd.merge(df_posts, df_profiles, on='user_id', how='left')
             
         else:
-            # 如果沒有貼文，建立空 DataFrame
+            # 如果沒有貼文，創建空 DataFrame
             df_merged = df_posts
             
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
         df_reactions = pd.DataFrame(reactions_res.data)
         
+        # 確保必要的欄位存在
         if 'username' not in df_merged.columns:
             df_merged['username'] = None
         if 'role' not in df_merged.columns:
@@ -95,8 +92,23 @@ def fetch_posts_and_reactions():
         return df_merged, df_reactions
         
     except Exception as e:
-        st.error(f"新聞牆數據載入失敗。請檢查您的 RLS 策略是否允許 SELECT 'posts' 和 'profiles' 表格。錯誤：{e}")
-        return pd.DataFrame(), pd.DataFrame()
+        # 捕獲 APIError，並執行降級策略
+        st.error(f"新聞牆數據載入失敗，已嘗試降級讀取。原因：{e}")
+        try:
+
+             posts_res_fallback = supabase.table('posts').select(
+                 "id, content, created_at, user_id, topic, post_type"
+             ).order("created_at", desc=True).execute()
+             
+             # 為 posts_df 創建一個空的 profiles 
+             df_posts_fallback = pd.DataFrame(posts_res_fallback.data)
+             df_posts_fallback['username'] = None
+             df_posts_fallback['role'] = 'user'
+             
+             return df_posts_fallback, pd.DataFrame()
+        except Exception as fallback_e:
+             st.error(f"退化載入失敗：{fallback_e}")
+             return pd.DataFrame(), pd.DataFrame()
 
 
 # --- 貼文提交邏輯---
@@ -105,7 +117,6 @@ def submit_post(topic, post_type, content):
         if not is_logged_in:
             st.error("請先登入才能發表貼文。")
             return
-        
         
         supabase.table('posts').insert({
             "user_id": current_user_id, 
@@ -123,15 +134,14 @@ def submit_post(topic, post_type, content):
 # --- React 處理邏輯  ---
 def handle_reaction(post_id, reaction_type):
     try:
-        if st.session_state.user is None:
+        if not is_logged_in:
             st.error("請先登入才能進行反應。")
             return
             
-        user_id_str = str(st.session_state.user.id)
-        
+        # 使用 current_user_id 
         supabase.table('reactions').upsert({
             "post_id": post_id, 
-            "user_id": user_id_str, # UUID
+            "user_id": current_user_id, 
             "reaction_type": reaction_type
         }, on_conflict="post_id, user_id").execute()
         
@@ -186,18 +196,22 @@ if not reactions_df.empty and not posts_df.empty:
     posts_df['id'] = posts_df['id'].astype(str)
     reactions_df['post_id'] = reactions_df['post_id'].astype(str)
 
-    #  topic 欄位
+    # 必須確保 posts_df 包含 topic 欄位
     if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
+        
         merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id')
         
-        topic_summary = merged_df.groupby(['topic', 'reaction_type'])['count'].sum().reset_index()
-        
-        fig = px.bar(topic_summary, x='topic', y='count', color='reaction_type',
-                     title="各主題意見反應分佈",
-                     labels={'topic': '主題', 'count': '反應數量'},
-                     color_discrete_map={'支持': 'green', '中立': 'gray', '反對': 'red'})
-        st.plotly_chart(fig, use_container_width=True)
+        if not merged_df.empty:
+            topic_summary = merged_df.groupby(['topic', 'reaction_type'])['count'].sum().reset_index()
+            
+            fig = px.bar(topic_summary, x='topic', y='count', color='reaction_type',
+                         title="各主題意見反應分佈",
+                         labels={'topic': '主題', 'count': '反應數量'},
+                         color_discrete_map={'支持': 'green', '中立': 'gray', '反對': 'red'})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("無法繪製圖表：貼文數據不足或合併失敗。")
     else:
         st.info("無法繪製圖表：貼文數據結構不完整。")
 else:
@@ -209,7 +223,7 @@ st.subheader("📰 所有貼文列表")
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 1. 匿名化與角色名稱顯示邏輯 (使用雙查詢結果的 username 和 role 欄位)
+    # 1. 匿名化與角色名稱顯示邏輯 
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
