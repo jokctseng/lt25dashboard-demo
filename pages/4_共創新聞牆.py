@@ -222,6 +222,8 @@ if not posts_df.empty:
     for col_name in ['支持', '中立', '反對']:
         if col_name not in posts_df.columns:
             posts_df[col_name] = 0
+        else:
+            post_df[col_name] = posts_df[col_name].astype(int)
     # 計算總數和支持比例
     posts_df['Total_Reactions'] = posts_df['支持'] + posts_df['中立'] + posts_df['反對']
     
