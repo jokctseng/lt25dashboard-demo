@@ -9,7 +9,7 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 連線初始化與權限檢查 (保持不變) ---
+# --- 連線初始化與權限檢查  ---
 supabase = st.session_state.get('supabase')
 
 # 檢查連線狀態
@@ -231,7 +231,7 @@ if selected_topic != '所有主題' and not posts_df.empty:
     posts_df = posts_df[posts_df['topic'] == selected_topic]
     
 st.markdown("---")
-st.subheader(f"📰 所有貼文列表 (依支持比例排序)")
+st.subheader(f"📰 所有貼文列表")
 
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
