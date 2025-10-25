@@ -213,12 +213,11 @@ st.subheader("📈 主題意見群聚圖（即時）")
 
 if not reactions_df.empty and not posts_df.empty:
     posts_df['id'] = posts_df['id'].astype(str)
-    reactions_df['post_id'] = reactions_df['post_id'].astype(str)
 
     if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
         
-        merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id')
+        merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id', how='left')
         
         if not merged_df.empty:
             topic_summary = merged_df.groupby(['topic', 'reaction_type'])['count'].sum().reset_index()
@@ -264,10 +263,11 @@ for index, row in posts_df.iterrows():
         st.write(row['content'])
         
         # reactions_df 
-        post_reactions = reactions_df[reactions_df['post_id'] == row['id']] if not reactions_df.empty else pd.DataFrame()
+        post_id_str = str(row['id'])
+        post_reactions = reactions_df[reactions_df['post_id'] == post_id_str] if not reactions_df.empty else pd.DataFrame()
         
         reaction_summary = {}
-        if 'reaction_type' in post_reactions.columns:
+        if not post_reactions.empty and 'reaction_type' in post_reactions.columns:
             reaction_summary = post_reactions.groupby('reaction_type').size().to_dict()
 
         summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
