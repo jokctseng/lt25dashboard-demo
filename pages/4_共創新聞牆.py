@@ -212,12 +212,16 @@ if not posts_df.empty:
     reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
 
     # 樞紐化
-    reaction_pivot = reaction_counts.pivot(index='post_id', columns='reaction_type', values='count').fillna(0)
-    reaction_pivot = reaction_pivot.reset_index().rename(columns={'post_id': 'id'})
+    reaction_pivot = reaction_counts.pivot(index='post_id', columns='reaction_type', values='count').fillna(0).reset_index()
+    reaction_pivot = reaction_pivot.rename(columns={'post_id': 'id'})
     
     # 合併 Reactions 數據到 Posts 中
+    posts_df['id'] = posts_df['id'].astype(str)
     posts_df = pd.merge(posts_df, reaction_pivot, on='id', how='left').fillna(0)
-    
+
+    for col_name in ['支持', '中立', '反對']:
+        if col_name not in posts_df.columns:
+            posts_df[col_name] = 0
     # 計算總數和支持比例
     posts_df['Total_Reactions'] = posts_df['支持'] + posts_df['中立'] + posts_df['反對']
     
