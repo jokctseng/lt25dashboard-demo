@@ -3,8 +3,9 @@ from supabase import create_client, Client
 import pandas as pd
 import os 
 import time
+from auth_utils import fetch_user_profile, render_sidebar_auth
 
-# --- 0. 配置與初始化 ---
+# ---設置與初始化 ---
 st.set_page_config(
     page_title="全國青年會議協作平台",
     layout="wide",
@@ -110,7 +111,9 @@ st.warning("""
 
 def init_connection(is_admin=False) -> Client:
     """初始化 Supabase 連線 """
-    
+    if "supabase" not in st.secrets or "url" not in st.secrets["supabase"]:
+        return None
+        
     try:
         config_section = st.secrets["supabase"]
         url = config_section["url"]
@@ -119,8 +122,10 @@ def init_connection(is_admin=False) -> Client:
             key = config_section["service_role_key"] 
         else:
             key = config_section["key"] 
-            
-        return create_client(url, key)
+        if key:
+            return create_client(url, key)
+        else:
+            return None
     except Exception as e:
         return None 
 
@@ -140,95 +145,16 @@ if is_connected and st.session_state.user is None:
     try:
         session = supabase.auth.get_session()
         if session and session.user:
-            # 恢復 Session 成功
             st.session_state.user = session.user
-            fetch_user_profile(session.user.id) 
+            fetch_user_profile(supabase, session.user.id)
             st.rerun() # 刷新頁面以更新登入狀態
     except Exception:
         pass # Session 無效或過期，保持未登入狀態
 
 
-# --- 認證與權限檢查 ---
-
-def fetch_user_profile(user_id):
-    try:
-        if st.session_state.supabase:
-            response = st.session_state.supabase.table('profiles').select("role, username").eq('id', user_id).single().execute()
-            st.session_state.role = response.data['role']
-            st.session_state.username = response.data['username']
-    except Exception:
-        st.session_state.role = "user"
-        st.session_state.username = None
-
-def authenticate_user():
-    """處理使用者登入/登出和角色檢查 """
-    
-    if not is_connected:
-        st.sidebar.error("連線錯誤，無法登入/註冊。")
-        return
-        
-    elif st.session_state.user is None:
-        st.sidebar.subheader("使用者登入/註冊")
-        
-        with st.sidebar.form("auth_form"):
-            auth_type = st.radio("選擇操作", ["登入", "註冊"])
-            email = st.text_input("Email")
-            password = st.text_input("密碼", type="password")
-            submitted = st.form_submit_button("執行")
-
-            if submitted:
-                try:
-                    if auth_type == "註冊":
-                        user = st.session_state.supabase.auth.sign_up({"email": email, "password": password})
-                        st.success("註冊成功！請檢查 Email 以驗證帳號。")
-                    else:
-                        user = st.session_state.supabase.auth.sign_in_with_password({"email": email, "password": password})
-                        st.session_state.user = user.user
-                        fetch_user_profile(user.user.id)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"認證失敗: {e}")
-                    st.info("如果問題持續，請嘗試在瀏覽器中清除該網站的緩存和本地存儲。")
-        
-    else:
-        # 已登入 
-        user_role = st.session_state.role
-        user_email = st.session_state.user.email
-        display_name = st.session_state.username
-        
-        if user_role == 'system_admin':
-            greeting_name = f"管理員 - {display_name or user_email}"
-        elif user_role == 'moderator':
-            greeting_name = f"版主 - {display_name or user_email}"
-        elif display_name:
-            greeting_name = f"{display_name}選手"
-        else:
-            greeting_name = "匿名演練選手"
-            
-        st.sidebar.write(f"👋 歡迎, **{greeting_name}**") 
-        st.sidebar.caption(f"(角色: {user_role})")
-        
-        if st.sidebar.button("登出"):
-            st.session_state.supabase.auth.sign_out()
-            st.session_state.user = None
-            st.session_state.role = "guest"
-            st.session_state.username = None
-            st.rerun()
-        
-
-# --- 自動儲存 ---
-def auto_update_username(new_username):
-    try:
-        if st.session_state.user and st.session_state.supabase:
-            st.session_state.supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
-            st.session_state.username = new_username
-            st.toast("暱稱已自動儲存！")
-    except Exception as e:
-        st.error(f"儲存失敗: {e}")
-
 # --- 儀表板主邏輯 ---
 def main():
-    
+    render_sidebar_auth(supabase, is_connected)
     if st.session_state.user is None:
         st.subheader("平台功能總覽")
         page_summary = [
@@ -261,22 +187,6 @@ def main():
             """
             col.markdown(card_html, unsafe_allow_html=True)
         
-    if st.session_state.user is not None:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("👤 個人設定")
-        current_username = st.session_state.username or ""
-        st.sidebar.text_input(
-            "公開暱稱 (發文用)", 
-            value=current_username,
-            key="new_username_input",
-            on_change=lambda: auto_update_username(st.session_state.new_username_input)
-        )
-        
-        if st.session_state.role == 'system_admin':
-            st.sidebar.markdown("---")
-            st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
-
 
 if __name__ == "__main__":
-    authenticate_user()
     main()
