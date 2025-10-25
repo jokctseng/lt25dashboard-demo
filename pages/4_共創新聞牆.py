@@ -9,31 +9,18 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 連線初始化與權限檢查 ---
+# --- 連線初始化與權限檢查 (保持不變) ---
 supabase = st.session_state.get('supabase')
 
 # 檢查連線狀態
 if supabase is None:
     st.error("🚨 核心服務連線失敗。頁面已載入，但數據無法獲取。請檢查主頁連線。")
+    st.stop()
     
-else:
-    supabase: Client = supabase
-
-supabase: Client = st.session_state.supabase 
+supabase: Client = supabase
 
 # Admin Client
-supabase_admin: Client = None 
-if 'service_role_key' in st.secrets.supabase:
-    if 'supabase_admin' not in st.session_state or st.session_state.supabase_admin is None:
-        try:
-            url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["service_role_key"]
-            st.session_state.supabase_admin = create_client(url, key)
-        except Exception:
-            st.session_state.supabase_admin = None 
-
-    supabase_admin = st.session_state.supabase_admin
-
+supabase_admin: Client = st.session_state.get('supabase_admin')
 
 # --- Session 狀態處理 ---
 if "user" not in st.session_state:
@@ -45,7 +32,7 @@ if "username" not in st.session_state:
 if "reaction_version" not in st.session_state:
     st.session_state.reaction_version = 0
 
-# 確定使用者 ID 
+# 確定使用者 ID (確保是字串，用於 RLS 比較)
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
@@ -62,8 +49,9 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
-def fetch_posts_and_reactions(version):
-    """從 Supabase 獲取所有貼文、作者暱稱及 Reaction"""
+def fetch_posts_and_reactions(version): 
+    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
+    
     empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
 
     try:
@@ -76,9 +64,11 @@ def fetch_posts_and_reactions(version):
         
         # 查詢 2 (作者暱稱和角色)
         if not df_posts.empty:
+            # 確保 posts ID 是字串
             df_posts['id'] = df_posts['id'].astype(str)
             df_posts['user_id'] = df_posts['user_id'].astype(str)
             user_ids = df_posts['user_id'].unique().tolist()
+            
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
             df_profiles = pd.DataFrame(profiles_res.data).rename(columns={'id': 'user_id'})
             df_profiles['user_id'] = df_profiles['user_id'].astype(str)
@@ -105,12 +95,12 @@ def fetch_posts_and_reactions(version):
         return df_merged, df_reactions
         
     except Exception as e:
-        # 讀取失敗時的處理
-        st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略。錯誤：{e}")
+        st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略是否允許 SELECT 'posts' 和 'profiles'。錯誤：{e}")
         empty_posts_df = pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role'])
         return empty_posts_df, empty_reactions_df.copy()
 
-# --- 貼文提交邏輯---
+
+# --- 貼文提交邏輯 ---
 def submit_post(topic, post_type, content):
     try:
         if not is_logged_in:
@@ -131,7 +121,7 @@ def submit_post(topic, post_type, content):
         }).execute()
         
         st.toast("貼文已成功發布！")
-        fetch_posts_and_reactions.clear()
+        st.session_state.reaction_version += 1
         st.rerun() 
     except Exception as e:
         st.error(f"發布失敗: {e}")
@@ -157,8 +147,7 @@ def handle_reaction(post_id, reaction_type):
         
         st.toast(f"已表達 '{reaction_type}'！")
         st.session_state.reaction_version += 1
-        fetch_posts_and_reactions.clear()
-        st.rerun()
+        st.rerun() 
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
@@ -166,7 +155,6 @@ def handle_reaction(post_id, reaction_type):
 def delete_post(post_id):
     if is_admin_or_moderator:
         try:
-            # 刪除操作應始終使用高權限客戶端
             delete_client = supabase_admin if supabase_admin else supabase
             
             if delete_client is None:
@@ -175,7 +163,7 @@ def delete_post(post_id):
                  
             delete_client.table('posts').delete().eq('id', post_id).execute()
             st.toast("貼文已刪除。")
-            fetch_posts_and_reactions.clear()
+            st.session_state.reaction_version += 1
             st.rerun() 
         except Exception as e:
             st.error(f"刪除失敗: {e}")
@@ -203,28 +191,26 @@ if is_logged_in:
                 st.warning("請填寫內容！")
 
 st.markdown("---")
-
-# --- 計算支持比例 ---
-
+# --- 計算支持比例  ---
 if not posts_df.empty:
     
-    # 每個貼文的 Reactions 數量
+    # 計數
     reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
 
-    # 樞紐化
+    #  樞紐化
     reaction_pivot = reaction_counts.pivot(index='post_id', columns='reaction_type', values='count').fillna(0).reset_index()
     reaction_pivot = reaction_pivot.rename(columns={'post_id': 'id'})
     
     # 合併 Reactions 數據到 Posts 中
     posts_df['id'] = posts_df['id'].astype(str)
     posts_df = pd.merge(posts_df, reaction_pivot, on='id', how='left').fillna(0)
-
+    
     for col_name in ['支持', '中立', '反對']:
         if col_name not in posts_df.columns:
             posts_df[col_name] = 0
-        else:
-            posts_df[col_name] = posts_df[col_name].astype(int)
-    # 計算總數和支持比例
+        posts_df[col_name] = posts_df[col_name].astype(int) 
+            
+    # 支持比例
     posts_df['Total_Reactions'] = posts_df['支持'] + posts_df['中立'] + posts_df['反對']
     
     # 防止除以零
@@ -232,12 +218,12 @@ if not posts_df.empty:
         lambda row: row['支持'] / row['Total_Reactions'] if row['Total_Reactions'] > 0 else 0, axis=1
     )
     
-    # 排序：支持比例 / 發布時間降序
+    # 支持比例、發布時間降序
     posts_df = posts_df.sort_values(
         ['Support_Ratio', 'created_at'], 
         ascending=[False, False]
     )
-st.markdown("---")
+
 # --- 新增篩選器 ---
 st.subheader("主題篩選")
 selected_topic = st.selectbox("選擇主題以篩選列表", options=['所有主題'] + TOPICS)
@@ -245,12 +231,12 @@ if selected_topic != '所有主題' and not posts_df.empty:
     posts_df = posts_df[posts_df['topic'] == selected_topic]
     
 st.markdown("---")
-st.subheader("📰 所有貼文列表")
+st.subheader(f"📰 所有貼文列表 (依支持比例排序)")
 
 for index, row in posts_df.iterrows():
     col_content, col_react = st.columns([4, 1])
     
-    # 匿名化與角色名稱顯示邏輯
+    # 匿名與角色名稱顯示邏輯
     username = row.get('username')
     author_role = row.get('role', 'user')
     user_id = row['user_id']
@@ -279,7 +265,7 @@ for index, row in posts_df.iterrows():
         summary_text = f"👍 {support} | 😐 {neutral} | 👎 {oppose}"
         st.caption(summary_text)
 
-    #  React 按鈕 
+    # React 按鈕 
     with col_react:
         if is_logged_in:
             react_col1, react_col2, react_col3 = st.columns([1, 1, 1])
@@ -293,7 +279,7 @@ for index, row in posts_df.iterrows():
             # 訪客模式：顯示總計數
             st.caption(f"反應: {summary_text}")
     
-    #  版主刪除按鈕
+    # 版主刪除按鈕
     if is_admin_or_moderator:
         st.write("---") 
         col_admin, _ = st.columns([1, 4])
