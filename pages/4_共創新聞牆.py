@@ -9,7 +9,7 @@ import os
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
 
-# --- 連線初始化與權限檢查 (修復內容顯示問題) ---
+# --- 連線初始化與權限檢查 ---
 supabase = st.session_state.get('supabase')
 
 # 檢查連線狀態
@@ -62,7 +62,6 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
     """從 Supabase 獲取所有貼文、作者暱稱及 Reaction"""
-    
     empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
 
     try:
@@ -75,6 +74,7 @@ def fetch_posts_and_reactions():
         
         # 查詢 2 (作者暱稱和角色)
         if not df_posts.empty:
+            df_posts['id'] = df_posts['id'].astype(str)
             df_posts['user_id'] = df_posts['user_id'].astype(str)
             user_ids = df_posts['user_id'].unique().tolist()
             profiles_res = supabase.table('profiles').select("id, username, role").in_("id", user_ids).execute()
@@ -89,7 +89,9 @@ def fetch_posts_and_reactions():
         reactions_res = supabase.table('reactions').select("post_id, reaction_type").execute()
         df_reactions = pd.DataFrame(reactions_res.data)
         
-        if df_reactions.empty:
+        if not df_reactions.empty:
+            df_reactions['post_id'] = df_reactions['post_id'].astype(str)
+        else:
             df_reactions = empty_reactions_df.copy()
 
         # 確保必要的欄位存在
@@ -105,7 +107,6 @@ def fetch_posts_and_reactions():
         st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略。錯誤：{e}")
         empty_posts_df = pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role'])
         return empty_posts_df, empty_reactions_df.copy()
-
 
 # --- 貼文提交邏輯---
 def submit_post(topic, post_type, content):
@@ -128,7 +129,7 @@ def submit_post(topic, post_type, content):
         }).execute()
         
         st.toast("貼文已成功發布！")
-        st.cache_data.clear()
+        fetch_posts_and_reactions.clear()
         st.rerun() 
     except Exception as e:
         st.error(f"發布失敗: {e}")
@@ -154,6 +155,7 @@ def handle_reaction(post_id, reaction_type):
         
         st.toast(f"已表達 '{reaction_type}'！")
         fetch_posts_and_reactions.clear()
+        st.rerun()
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
@@ -207,7 +209,6 @@ if selected_topic != '所有主題' and not posts_df.empty:
 st.subheader("📈 主題意見群聚圖（即時）")
 
 if not reactions_df.empty and not posts_df.empty:
-    # 確保 ID 類型一致以進行合併
     posts_df['id'] = posts_df['id'].astype(str)
     reactions_df['post_id'] = reactions_df['post_id'].astype(str)
 
