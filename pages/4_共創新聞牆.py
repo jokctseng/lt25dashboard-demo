@@ -203,36 +203,40 @@ if is_logged_in:
                 st.warning("請填寫內容！")
 
 st.markdown("---")
+
+# --- 計算支持比例 ---
+
+if not posts_df.empty:
+    
+    # 每個貼文的 Reactions 數量
+    reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
+
+    # 樞紐化
+    reaction_pivot = reaction_counts.pivot(index='post_id', columns='reaction_type', values='count').fillna(0)
+    reaction_pivot = reaction_pivot.reset_index().rename(columns={'post_id': 'id'})
+    
+    # 合併 Reactions 數據到 Posts 中
+    posts_df = pd.merge(posts_df, reaction_pivot, on='id', how='left').fillna(0)
+    
+    # 計算總數和支持比例
+    posts_df['Total_Reactions'] = posts_df['支持'] + posts_df['中立'] + posts_df['反對']
+    
+    # 防止除以零
+    posts_df['Support_Ratio'] = posts_df.apply(
+        lambda row: row['支持'] / row['Total_Reactions'] if row['Total_Reactions'] > 0 else 0, axis=1
+    )
+    
+    # 排序：支持比例 / 發布時間降序
+    posts_df = posts_df.sort_values(
+        ['Support_Ratio', 'created_at'], 
+        ascending=[False, False]
+    )
+st.markdown("---")
 # --- 新增篩選器 ---
 st.subheader("主題篩選")
 selected_topic = st.selectbox("選擇主題以篩選列表", options=['所有主題'] + TOPICS)
 if selected_topic != '所有主題' and not posts_df.empty:
     posts_df = posts_df[posts_df['topic'] == selected_topic]
-
-st.subheader("📈 主題意見群聚圖（即時）")
-
-if not reactions_df.empty and not posts_df.empty:
-    posts_df['id'] = posts_df['id'].astype(str)
-
-    if 'topic' in posts_df.columns:
-        reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
-        
-        merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id', how='left')
-        
-        if not merged_df.empty:
-            topic_summary = merged_df.groupby(['topic', 'reaction_type'])['count'].sum().reset_index()
-            
-            fig = px.bar(topic_summary, x='topic', y='count', color='reaction_type',
-                         title="各主題意見反應分佈",
-                         labels={'topic': '主題', 'count': '反應數量'},
-                         color_discrete_map={'支持': 'green', '中立': 'gray', '反對': 'red'})
-            st.plotly_chart(fig, config={'displayModeBar': False})
-        else:
-            st.info("無法繪製圖表：貼文數據不足或合併失敗。")
-    else:
-        st.info("無法繪製圖表：貼文數據結構不完整。")
-else:
-    st.info("目前沒有任何貼文反應數據。")
     
 st.markdown("---")
 st.subheader("📰 所有貼文列表")
@@ -262,15 +266,11 @@ for index, row in posts_df.iterrows():
         st.markdown(f"**[{row['topic']}] ({row['post_type']}) - {final_author_name}**") 
         st.write(row['content'])
         
-        # reactions_df 
-        post_id_str = str(row['id'])
-        post_reactions = reactions_df[reactions_df['post_id'] == post_id_str] if not reactions_df.empty else pd.DataFrame()
+        support = int(row.get('支持', 0))
+        neutral = int(row.get('中立', 0))
+        oppose = int(row.get('反對', 0))
         
-        reaction_summary = {}
-        if not post_reactions.empty and 'reaction_type' in post_reactions.columns:
-            reaction_summary = post_reactions.groupby('reaction_type').size().to_dict()
-
-        summary_text = f"👍 {reaction_summary.get('支持', 0)} | 😐 {reaction_summary.get('中立', 0)} | 👎 {reaction_summary.get('反對', 0)}"
+        summary_text = f"👍 {supoort} | 😐 {neutral} | 👎 {oppose}"
         st.caption(summary_text)
 
     #  React 按鈕 
