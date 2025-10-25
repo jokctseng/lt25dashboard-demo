@@ -61,7 +61,7 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
 def fetch_posts_and_reactions():
-    """從 Supabase 獲取所有貼文、作者暱稱及 Reactions (使用雙查詢穩定版)"""
+    """從 Supabase 獲取所有貼文、作者暱稱及 Reaction"""
     
     empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
 
@@ -102,7 +102,7 @@ def fetch_posts_and_reactions():
         
     except Exception as e:
         # 讀取失敗時的處理
-        st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略是否允許 SELECT 'posts' 和 'profiles'。錯誤：{e}")
+        st.error(f"新聞牆數據載入失敗，請檢查 RLS 策略。錯誤：{e}")
         empty_posts_df = pd.DataFrame(columns=['id', 'content', 'user_id', 'topic', 'post_type', 'username', 'role'])
         return empty_posts_df, empty_reactions_df.copy()
 
@@ -153,7 +153,7 @@ def handle_reaction(post_id, reaction_type):
         }, on_conflict="post_id, user_id").execute()
         
         st.toast(f"已表達 '{reaction_type}'！")
-        st.cache_data.clear()
+        fetch_posts_and_reactions.clear()
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
@@ -170,7 +170,7 @@ def delete_post(post_id):
                  
             delete_client.table('posts').delete().eq('id', post_id).execute()
             st.toast("貼文已刪除。")
-            st.cache_data.clear()
+            fetch_posts_and_reactions.clear()
             st.rerun() 
         except Exception as e:
             st.error(f"刪除失敗: {e}")
@@ -211,11 +211,9 @@ if not reactions_df.empty and not posts_df.empty:
     posts_df['id'] = posts_df['id'].astype(str)
     reactions_df['post_id'] = reactions_df['post_id'].astype(str)
 
-    if 'topic' in posts_df.columns and 'reaction_type' in reactions_df.columns:
-        # 修正點 6: 在進行分組前，確保 DataFrame 不為空
+    if 'topic' in posts_df.columns:
         reaction_counts = reactions_df.groupby(['post_id', 'reaction_type']).size().reset_index(name='count')
         
-        # 合併 reactions 數據和 posts 的主題
         merged_df = pd.merge(reaction_counts, posts_df[['id', 'topic']], left_on='post_id', right_on='id')
         
         if not merged_df.empty:
@@ -225,7 +223,6 @@ if not reactions_df.empty and not posts_df.empty:
                          title="各主題意見反應分佈",
                          labels={'topic': '主題', 'count': '反應數量'},
                          color_discrete_map={'支持': 'green', '中立': 'gray', '反對': 'red'})
-            # 修正點 7: 移除已棄用的參數
             st.plotly_chart(fig, config={'displayModeBar': False})
         else:
             st.info("無法繪製圖表：貼文數據不足或合併失敗。")
