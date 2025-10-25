@@ -274,7 +274,7 @@ for index, row in posts_df.iterrows():
         neutral = int(row.get('中立', 0))
         oppose = int(row.get('反對', 0))
         
-        summary_text = f"👍 {supoort} | 😐 {neutral} | 👎 {oppose}"
+        summary_text = f"👍 {support} | 😐 {neutral} | 👎 {oppose}"
         st.caption(summary_text)
 
     #  React 按鈕 
