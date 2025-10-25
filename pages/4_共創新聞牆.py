@@ -42,6 +42,8 @@ if "role" not in st.session_state:
     st.session_state.role = "guest"
 if "username" not in st.session_state:
     st.session_state.username = None
+if "reaction_version" not in st.session_state:
+    st.session_state.reaction_version = 0
 
 # 確定使用者 ID 
 current_user_id = str(st.session_state.user.id) if "user" in st.session_state and st.session_state.user else None
@@ -60,7 +62,7 @@ REACTION_TYPES = ["支持", "中立", "反對"]
 
 # --- 資料讀取與處理 ---
 @st.cache_data(ttl=1)
-def fetch_posts_and_reactions():
+def fetch_posts_and_reactions(version):
     """從 Supabase 獲取所有貼文、作者暱稱及 Reaction"""
     empty_reactions_df = pd.DataFrame(columns=['post_id', 'reaction_type'])
 
@@ -154,6 +156,7 @@ def handle_reaction(post_id, reaction_type):
         }, on_conflict="post_id, user_id").execute()
         
         st.toast(f"已表達 '{reaction_type}'！")
+        st.session_state.reaction_version += 1
         fetch_posts_and_reactions.clear()
         st.rerun()
     except Exception as e:
@@ -182,7 +185,7 @@ def delete_post(post_id):
 if not is_logged_in:
     st.warning("您目前是訪客模式。發言、投票和反應功能需要登入後才能使用。")
 
-posts_df, reactions_df = fetch_posts_and_reactions()
+posts_df, reactions_df = fetch_posts_and_reactions(st.session_state.reaction_version)
 
 
 if is_logged_in:
