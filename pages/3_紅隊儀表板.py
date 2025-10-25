@@ -149,7 +149,7 @@ def handle_vote(suggestion_id, vote_type):
         
         st.toast(f"投票成功: {vote_type}") 
         st.cache_data.clear()
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f"投票失敗: {e}")
 
@@ -162,7 +162,7 @@ def admin_delete_suggestion(suggestion_id):
         supabase.table('suggestions').delete().eq('id', suggestion_id).execute()
         st.toast("建議已刪除！")
         st.cache_data.clear()
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f"刪除失敗: {e}")
 
@@ -235,7 +235,7 @@ if is_admin_or_moderator:
                         }).execute()
                         st.toast("單筆建議新增成功！")
                         st.cache_data.clear()
-                        st.experimental_rerun()
+                        st.rerun()
                     except Exception as e:
                         st.error(f"新增失敗: {e}")
                 else:
@@ -274,7 +274,7 @@ if is_admin_or_moderator:
                     
                     st.success(f"成功匯入 {len(data_to_insert)} 筆建議/洞察！")
                     st.cache_data.clear()
-                    st.experimental_rerun()
+                    st.rerun()
 
                 except Exception as e:
                     st.error(f"批次匯入失敗：{e}")
