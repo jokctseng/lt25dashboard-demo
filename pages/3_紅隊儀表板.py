@@ -110,7 +110,7 @@ if selected_vote_status != '所有狀態':
         df_filtered = df_filtered[df_filtered[col_name] > 0]
 
 
-# --- 3. 視覺化呈現 ---
+# --- 視覺化呈現 ---
 
 if not df_filtered.empty:
     df_melt = df_filtered.melt(id_vars=['content', 'id', 'cate'], 
