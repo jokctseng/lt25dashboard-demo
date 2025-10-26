@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 from supabase import Client
 import time
+import datetime
+import pytz
 import os
 from auth_utils import render_sidebar_auth
 
@@ -38,8 +40,12 @@ is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] i
 
 supabase: Client = st.session_state.supabase
 render_sidebar_auth(st.session_state.supabase, True)
+
+TAIPEI_TZ = pytz.timezone('Asia/Taipei')
+current_time_taipei = datetime.datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')
+
 st.title("🛡️ 紅隊演練儀表板")
-st.caption(f"上次更新: {time.strftime('%H:%M:%S')}")
+st.caption(f"上次更新: {current_time_taipei}")
 st.markdown("---")
 
 # 定義類別與狀態
