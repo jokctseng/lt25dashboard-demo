@@ -79,7 +79,7 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         st.sidebar.markdown("---")
         
         # --- 管理登入區 ---
-        with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
+        with st.sidebar.expander("🔑 管理員登入", expanded=False):
             st.info("此區僅供管理員/版主使用。")
             with st.form("admin_auth_form"):
                 email = st.text_input("Email", key="login_email_input")
