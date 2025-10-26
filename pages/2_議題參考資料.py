@@ -150,7 +150,7 @@ def load_and_prepare_data():
 
     return df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus
 
-# 載入所有數據 (這裡接收的變數順序至關重要)
+# 載入所有數據 
 df_hotspots, df_hotspots_melt, df_talent, df_talent_melt, df_courses, df_grant, df_corpus_agg, df_corpus = load_and_prepare_data()
 
 # 檢查數據載入 
@@ -168,7 +168,7 @@ def plot_hotspots_trend(df):
         title='iTaiwan 熱點數量分區域趨勢',
         markers=True
     )
-    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="熱點數量")
+    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="熱點數量", xaxis_type='category')
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_talent_projection(df):
@@ -179,7 +179,7 @@ def plot_talent_projection(df):
         title='AI 專才新增人數推估趨勢',
         markers=True
     )
-    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="新增專才人數")
+    fig.update_layout(xaxis_title="年度 (西元)", yaxis_title="新增專才人數", xaxis_type='category')
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_course_hours(df):
@@ -191,7 +191,7 @@ def plot_course_hours(df):
         title='AIGO 自製線上課程總時數',
         text_auto=True
     )
-    fig.update_layout(xaxis_title="年度)", yaxis_title="總時數 (小時)")
+    fig.update_layout(xaxis_title="年度)", yaxis_title="總時數 (小時)", xaxis_type='category')
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_corpus_trend(df):
@@ -207,7 +207,7 @@ def plot_corpus_trend(df):
     st.plotly_chart(fig, use_container_width=True)
 
 
-# --- 3. Streamlit 頁面內容 ---
+# ---Streamlit 頁面內容 ---
 
 st.title("📊 相關補充資訊與統計分析")
 st.markdown("---")
