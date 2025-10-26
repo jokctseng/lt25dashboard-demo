@@ -3,10 +3,17 @@ from supabase import Client
 import uuid 
 from supabase import create_client 
 
-# --- session state  ---
+# --- Session State 初始化 ---
 
 def init_global_session_state():
     """初始化所有 Streamlit Session 狀態。"""
+    
+    if "supabase" not in st.session_state:
+        st.session_state.supabase = None
+    if "supabase_admin" not in st.session_state:
+        st.session_state.supabase_admin = None
+        
+    # 註冊用戶狀態
     if "user" not in st.session_state:
         st.session_state.user = None
     if "role" not in st.session_state:
@@ -21,7 +28,7 @@ def init_global_session_state():
         st.session_state.captcha_passed = False 
 
 
-# --- Helper Functions---
+# --- Helper Functions ---
 
 def fetch_user_profile(supabase_client: Client, user_id):
     """從 profiles 表格獲取使用者角色與暱稱"""
@@ -49,7 +56,7 @@ def auto_update_username(supabase: Client, new_username):
 
 def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
     """
-    渲染側邊欄：統一的 Email/密碼登入入口 + 已登入資訊 + 訪客暱稱設定。
+    渲染側欄：登入入口 + 已登入用戶資訊 + 訪客暱稱設定。
     """
     
     init_global_session_state() 
@@ -58,7 +65,7 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
         
-    # --- 訪客暱稱輸入框  ---
+    # --- 訪客暱稱輸入框 ---
     if st.session_state.user is None:
         
         st.sidebar.subheader("😊 匿名演練選手設定")
@@ -71,12 +78,13 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         st.sidebar.caption("您的暱稱將在所有互動功能中沿用。")
         st.sidebar.markdown("---")
         
-        # --- 管理登入折疊區塊 ---
+        # --- 管理登入區域 ---
         
         with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
             
-            st.info("此區僅供管理員/版主使用")            
-
+            st.info("此區域僅供管理員/版主使用。")
+            
+            # 登入表單
             with st.form("admin_auth_form"):
                 
                 email = st.text_input("Email", key="login_email_input")
@@ -96,13 +104,13 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
                     except Exception as e:
                         st.sidebar.error(f"認證失敗: {e}")
                 
-            # 忘記密碼提醒
+            # 忘記密碼提示
             st.markdown("---")
             if st.button("忘記密碼？"):
                  st.info("請聯繫系統管理員協助重設密碼。")
 
 
-    # --- 已登入資訊與設定 ---
+    # --- 已登入使用者資訊與設定 ---
     else:
         # 已登入顯示稱謂
         user_role = st.session_state.role
