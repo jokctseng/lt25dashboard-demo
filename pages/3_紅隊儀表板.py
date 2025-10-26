@@ -25,11 +25,11 @@ if not is_connected:
     st.stop()
 
 
-# 獲取 Clients 和角色資訊 (確保在頂層，這樣所有函式都可以安全訪問)
+# 獲取 Clients 和角色資訊 
 supabase_admin: Client = st.session_state.get('supabase_admin')
-# current_user_id = str(st.session_state.user.id) if st.session_state.user else None
-# is_logged_in = current_user_id is not None
-# is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
+current_user_id = str(st.session_state.user.id) if st.session_state.user else None
+is_logged_in = current_user_id is not None
+is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
 
 
 # 版本控制
@@ -37,10 +37,8 @@ if "dashboard_version" not in st.session_state:
     st.session_state.dashboard_version = 0
 
 @st.cache_data(ttl=1) 
-def fetch_dashboard_data(supabase_client: Client, version): 
-    """獲取建議列表及其投票狀態（呼叫 Supabase RPC）"""
+def fetch_dashboard_data(version): 
     try:
-        # 呼叫RPC
         response = supabase_client.rpc('get_suggestion_status', {}).execute()
         df = pd.DataFrame(response.data)
         
@@ -69,7 +67,6 @@ VOTE_STATUSES = ['所有狀態', '未解決', '部分解決', '已解決/有共�
 # --- 建議列表與投票區 ---
 
 def handle_vote(suggestion_id, vote_type):
-    """處理投票邏輯，將顯示名稱轉換為 Supabase 內部名稱"""
     
     current_user_id = str(st.session_state.user.id) if st.session_state.user else None
     is_logged_in = current_user_id is not None
@@ -164,7 +161,7 @@ selected_vote_status = col_status.selectbox(
     index=0
 )
 
-df = fetch_dashboard_data(st.session_state.supabase, st.session_state.dashboard_version) 
+df = fetch_dashboard_data(st.session_state.dashboard_version) 
 
 # 執行篩選
 df_filtered = df.copy()
