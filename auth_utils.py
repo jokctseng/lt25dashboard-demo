@@ -47,7 +47,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                         # sign_in_with_otp
                         supabase.auth.sign_in_with_otp(
                             email,
-                            options={
+                            {
                                 "email_redirect_to": "https://lt25dashboard.streamlit.app/", 
                                 "create_user": True 
                             }
@@ -101,7 +101,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                             supabase.auth.reset_password_for_email(
                                 email=reset_email,
                                 options={
-                                    "redirect_to": "https://your-app-name.streamlit.app/" 
+                                    "redirect_to": "https://lt25dashboard.streamlit.app/" 
                                 }
                             )
                             st.sidebar.success(f"已發送密碼重設連結至 {reset_email}，請檢查您的信箱。")
