@@ -1,19 +1,15 @@
 import streamlit as st
 import pandas as pd 
 import os
-from auth_utils import init_global_session_state, render_page_sidebar_auth
+from auth_utils import render_sidebar_auth
 
 st.set_page_config(page_title="大會資料")
 
-init_global_session_state() 
-supabase = st.session_state.get('supabase')
-is_connected = supabase is not None
-render_page_sidebar_auth(supabase, is_connected)
-
-# 檢查連線失敗
-if not is_connected:
-    st.error("🚨 核心服務連線失敗，請檢查配置。")
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
     st.stop()
+
+render_sidebar_auth(st.session_state.supabase, True) 
 
 st.title("📄 大會資料")
 
