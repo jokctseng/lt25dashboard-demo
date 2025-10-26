@@ -26,6 +26,9 @@ def init_global_session_state():
         st.session_state.guest_username = "匿名演練選手"
     if "captcha_passed" not in st.session_state:
         st.session_state.captcha_passed = False 
+    if "guest_uuid" not in st.session_state:
+        # 建立虛擬UUID
+        st.session_state.guest_uuid = str(uuid.uuid4())
 
 
 # --- Helper Functions ---
