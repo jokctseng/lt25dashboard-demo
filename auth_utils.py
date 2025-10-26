@@ -78,7 +78,7 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
             st.markdown("---")
             
             if auth_mode == "Google OAuth":
-                if st.button("🚀 Google 登入)", use_container_width=True):
+                if st.button("🚀 Google 登入", use_container_width=True):
                     try:
                         # OAuth
                         response = supabase.auth.sign_in_with_oauth(
