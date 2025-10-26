@@ -46,7 +46,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                     try:
                         # sign_in_with_otp
                         supabase.auth.sign_in_with_otp(
-                            email=email,
+                            email,
                             {
                                 "email_redirect_to": "https://lt25dashboard.streamlit.app/", 
                                 "create_user": True 
