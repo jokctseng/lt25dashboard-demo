@@ -46,7 +46,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                     try:
                         # sign_in_with_otp
                         supabase.auth.sign_in_with_otp(
-                            email=email,
+                            email,
                             options={
                                 "email_redirect_to": "https://lt25dashboard.streamlit.app/", 
                                 "create_user": True 
@@ -61,7 +61,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                 auth_type = st.radio("選擇操作", ["登入", "註冊"], key="page_auth_type")
                 email = st.text_input("Email", key="page_email_pwd")
                 password = st.text_input("密碼", type="password", key="page_password_input")
-                submitted = st.form_submit_button(auth_type) # 按鈕文字根據選擇切換
+                submitted = st.form_submit_button(auth_type) # 切換按鈕
 
                 if submitted:
                     if not email or not password:
