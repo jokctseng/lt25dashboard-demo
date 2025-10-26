@@ -36,9 +36,7 @@ if "dashboard_version" not in st.session_state:
     st.session_state.dashboard_version = 0
 
 @st.cache_data(ttl=1) 
-def fetch_dashboard_data(version): 
-    """獲取建議列表及其投票狀態（呼叫 Supabase RPC）"""
-    
+def fetch_dashboard_data(version):     
     supabase_client = st.session_state.get('supabase')
     if supabase_client is None:
         st.error("資料讀取失敗：Supabase 客戶端未初始化。")
