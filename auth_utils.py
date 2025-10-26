@@ -58,7 +58,7 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
     if not is_connected or supabase is None:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
-    # --- 1. 訪客暱稱輸入框 (修正點：將此區塊提前) ---
+    # --- 訪客暱稱設定---
     if st.session_state.user is None:
         st.sidebar.subheader("😊 匿名演練選手設定")
         
@@ -70,36 +70,35 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         st.sidebar.caption("暱稱將在所有互動中沿用。")
         st.sidebar.markdown("---") 
         
-    # --- 管理員/版主登入 ---
-    if st.session_state.user is None:
-        
-        st.sidebar.subheader("🔑 管理員/版主登入")
-        st.sidebar.info("請使用已設定的 Email 帳號登入。")
-
-        #  Email/密碼登入表單
-        with st.sidebar.form("admin_auth_form"):
-            email = st.text_input("Email", key="login_email_input")
-            password = st.text_input("密碼", type="password", key="login_password_input")
-            submitted = st.form_submit_button("執行登入")
-
-            if submitted:
-                if not email or not password:
-                    st.sidebar.error("請輸入 Email 和密碼。")
-                    return
-                    
-                try:
-                    user_session = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state.user = user_session.user
-                    fetch_user_profile(supabase, user_session.user.id)
-                    st.rerun()
-                except Exception as e:
-                    st.sidebar.error(f"認證失敗: {e}")
+# --- 管理登入區塊---
+                with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
             
-        # 忘記密碼提醒
-        st.sidebar.markdown("---")
-        if st.sidebar.button("忘記密碼？"):
-             st.info("請聯繫系統管理員協助重設密碼。")
+            st.info("此區域僅供管理員/版主使用。")
+            
+            # 帳密登入
+            with st.form("admin_auth_form"):
+                
+                email = st.text_input("Email", key="login_email_input")
+                password = st.text_input("密碼", type="password", key="login_password_input")
+                submitted = st.form_submit_button("登入")
 
+                if submitted:
+                    if not email or not password:
+                        st.sidebar.error("請輸入 Email 和密碼。")
+                        return
+                        
+                    try:
+                        user_session = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                        st.session_state.user = user_session.user
+                        fetch_user_profile(supabase, user_session.user.id)
+                        st.rerun()
+                    except Exception as e:
+                        st.sidebar.error(f"認證失敗: {e}")
+                
+            # 忘記密碼提醒
+            st.markdown("---")
+            if st.button("忘記密碼？"):
+                 st.info("請聯繫系統管理員協助重設密碼。")
 
 
     # --- 已登入資訊與設定 ---
