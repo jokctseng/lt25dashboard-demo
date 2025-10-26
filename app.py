@@ -5,7 +5,6 @@ import os
 import time
 from auth_utils import init_global_session_state, render_page_sidebar_ui, fetch_user_profile
 
-init_global_session_state()
 
 # ---設置與初始化 ---
 st.set_page_config(
@@ -92,6 +91,7 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
+init_global_session_state()
 def init_connection(is_admin=False) -> Client | None:
     """初始化 Supabase 連線"""
     
@@ -105,7 +105,7 @@ def init_connection(is_admin=False) -> Client | None:
         if is_admin:
             key = config_section.get("service_role_key")
         else:
-            key = config_section.get("anon_key")
+            key = config_section.get("key")
 
         if key:
             return create_client(url, key)
@@ -122,7 +122,6 @@ if st.session_state.supabase_admin is None:
 # 獲取 Clients 和連線狀態 
 is_connected = st.session_state.supabase is not None
 supabase = st.session_state.supabase
-supabase_admin = st.session_state.supabase_admin
 
 
 # --- RLS狀態恢復機制 ---
