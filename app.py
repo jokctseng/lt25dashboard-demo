@@ -147,7 +147,7 @@ if is_connected and st.session_state.user is None:
         if session and session.user:
             st.session_state.user = session.user
             fetch_user_profile(supabase, session.user.id)
-            st.rerun() # 刷新頁面以更新登入狀態
+            st.rerun() # 更新登入狀態
     except Exception:
         pass # Session 無效或過期，保持未登入狀態
 
@@ -165,7 +165,6 @@ def main():
             {"title": "致謝與授權", "icon": "🤝", "desc": "查看專案開發團隊、貢獻者名單與程式碼授權說明。"},
         ]
         
-        st.subheader("平台功能總覽")
         st.markdown("---")
 
         cols = st.columns(2)
