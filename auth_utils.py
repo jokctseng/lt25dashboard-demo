@@ -46,83 +46,60 @@ def auto_update_username(supabase: Client, new_username):
         st.error(f"儲存失敗: {e}")
 
 
-# --- 主渲染函式 ---
+# --- 側邊欄渲染---
 
 def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
     """
-    渲染側邊欄：管理員登入入口 + 已登入用戶資訊 + 訪客暱稱設定。
+    渲染側邊欄：Email/密碼登入入口 + 已登入資訊 + 訪客暱稱設定。
     """
     
-    init_global_session_state() 
-    
+    init_global_session_state() # 確保所有狀態都已初始化
+
     if not is_connected or supabase is None:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
+    # --- 1. 訪客暱稱輸入框 (修正點：將此區塊提前) ---
+    if st.session_state.user is None:
+        st.sidebar.subheader("😊 匿名演練選手設定")
         
-    # --- 管理員登入 ---
+        st.session_state.guest_username = st.sidebar.text_input(
+            "發言暱稱",
+            value=st.session_state.guest_username,
+            key="sidebar_guest_username_input" 
+        )
+        st.sidebar.caption("暱稱將在所有互動中沿用。")
+        st.sidebar.markdown("---") 
+        
+    # --- 管理員/版主登入 ---
     if st.session_state.user is None:
         
-        st.sidebar.subheader("🔑 權限認證入口")
-        st.sidebar.info("一般訪客無需登入。此通道僅供管理員/版主使用。")
+        st.sidebar.subheader("🔑 管理員/版主登入")
+        st.sidebar.info("請使用已設定的 Email 帳號登入。")
 
-        # 管理員專用
-        with st.sidebar.expander("管理員/版主登入", expanded=True):
-            
-            # 登入邏輯 (OAuth / 帳密)
-            auth_mode = st.radio(
-                "選擇登入方式", 
-                ["Google OAuth", "Email/密碼"], 
-                key="admin_auth_mode_select"
-            )
-            
-            st.markdown("---")
-            
-            if auth_mode == "Google OAuth":
-                if st.button("🚀 Google 登入", use_container_width=True):
-                    try:
-                        # OAuth
-                        response = supabase.auth.sign_in_with_oauth(
-                            "google", 
-                            options={"redirectTo": "https://lt25dashbaord.streamlit.app/"} 
-                        )
-                        st.markdown(f'<script>window.location.href = "{response.url}";</script>', unsafe_allow_html=True)
-                        
-                    except Exception as e:
-                        st.sidebar.error(f"Google 登入失敗: {e}")
-            
-            else: # Email/密碼登入
-                with st.form("admin_pwd_form", clear_on_submit=True):
-                    admin_email = st.text_input("管理員Email", key="admin_email_input")
-                    admin_password = st.text_input("管理員密碼", type="password", key="admin_password_input")
+        #  Email/密碼登入表單
+        with st.sidebar.form("admin_auth_form"):
+            email = st.text_input("Email", key="login_email_input")
+            password = st.text_input("密碼", type="password", key="login_password_input")
+            submitted = st.form_submit_button("執行登入")
+
+            if submitted:
+                if not email or not password:
+                    st.sidebar.error("請輸入 Email 和密碼。")
+                    return
                     
-                    if st.form_submit_button("執行登入"):
-                        if admin_email and admin_password:
-                            try:
-                                user_session = supabase.auth.sign_in_with_password({"email": admin_email, "password": admin_password})
-                                st.session_state.user = user_session.user
-                                fetch_user_profile(supabase, user_session.user.id)
-                                st.rerun()
-                            except Exception:
-                                st.error("登入失敗，請檢查 Email/密碼。")
-                        else:
-                            st.error("請輸入憑證。")
-                        
-            st.markdown("---")
+                try:
+                    user_session = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                    st.session_state.user = user_session.user
+                    fetch_user_profile(supabase, user_session.user.id)
+                    st.rerun()
+                except Exception as e:
+                    st.sidebar.error(f"認證失敗: {e}")
             
-            # 訪客暱稱輸入框
-            st.subheader("😊 匿名演練選手設定")
-            
-            st.session_state.guest_username = st.text_input(
-                "發言暱稱",
-                value=st.session_state.guest_username,
-                key="sidebar_guest_username_input" 
-            )
-            st.caption("您的暱稱將在本次瀏覽之所有互動功能中沿用。")
-            
-            # 忘記密碼按鈕 (簡化為提醒)
-            st.markdown("---")
-            if st.button("忘記密碼？", key="forget_password_button"):
-                 st.info("請聯繫系統管理員協助重設密碼。")
+        # 忘記密碼提醒
+        st.sidebar.markdown("---")
+        if st.sidebar.button("忘記密碼？"):
+             st.info("請聯繫系統管理員協助重設密碼。")
+
 
 
     # --- 已登入資訊與設定 ---
@@ -165,3 +142,4 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         if st.session_state.role == 'system_admin':
             st.sidebar.markdown("---")
             st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
+    
