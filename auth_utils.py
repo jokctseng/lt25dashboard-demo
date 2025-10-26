@@ -34,7 +34,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
     if st.session_state.user is None:
         st.sidebar.subheader("管理專用登入")
         
-        # --- OAuth / Web3 登入 ---
+        # --- OAuth ---
         st.sidebar.markdown("##### 身分驗證 (Admin / Mod)")
         col_oauth = st.sidebar.columns(2)
         
@@ -49,9 +49,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
             except Exception as e:
                 st.sidebar.error(f"Google 登入失敗: {e}")
 
-        # Web3 登入
-        if col_oauth[1].button("🔗 Web3 登入", use_container_width=True):
-            st.sidebar.warning("Web3登入或許需要其他條件請看說明文件")
+
 
         # 隱藏在 Expander 內 (備用通道)
         with st.sidebar.expander("🔑 傳統 Email 登入"):
