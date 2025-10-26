@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd 
 import os
-from auth_utils import init_global_session_state, render_page_sidebar_ui
+from auth_utils import init_global_session_state, render_page_sidebar_auth
 
 st.set_page_config(page_title="大會資料")
 
 init_global_session_state() 
 supabase = st.session_state.get('supabase')
 is_connected = supabase is not None
-render_page_sidebar_ui(supabase, is_connected)
+render_page_sidebar_auth(supabase, is_connected)
 
 # 檢查連線失敗
 if not is_connected:
