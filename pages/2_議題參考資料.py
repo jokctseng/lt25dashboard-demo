@@ -1,9 +1,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from auth_utils import render_sidebar_auth
 
 # 設置頁面標題
 st.set_page_config(page_title="參考資料")
+
+if "supabase" not in st.session_state or st.session_state.supabase is None:
+    st.error("🚨 基礎連線失敗，請先在主頁登入或檢查配置。")
+    st.stop()
+    
+render_sidebar_auth(st.session_state.supabase, True) 
 
 st.title("🔗 相關補充資訊與數據概覽")
 st.markdown("---")
@@ -35,8 +42,28 @@ reference_links = [
     {
         "label": "數發部｜促進資料創新利用發展條例草案",
         "url": "https://www-api.moda.gov.tw/File/Get/moda/zh-tw/kTu4o05SWXtGxfl",
-        "help": "活動常見問題與解答"
-    }
+        "help": "點擊查看草案"
+    },
+    {
+        "label": "教育部｜推動中小學數位學習精進方案",
+        "url": "https://pads.moe.edu.tw/pads_front/index.php?action=download",
+        "help": "點擊查看計畫資源與介紹"
+    },
+    {
+        "label": "教育部｜數位學習精進接下來四年規劃（新聞稿）",
+        "url": "https://www.edu.tw/News_Content.aspx?n=9E7AC85F1954DDA8&sms=169B8E91BB75571F&s=4FF8A55F908F23B9",
+        "help": "點擊查看六大核心子計畫概要"
+    },
+    {
+        "label": "教育部｜智慧創新關鍵人才躍升計畫",
+        "url": "https://proj.moe.edu.tw/itsa/cp.aspx?n=2303",
+        "help": "點擊查看計畫專頁與成果"
+    },
+    {
+        "label": "經濟部｜中小企業網路大學校",
+        "url": "https://www.smelearning.org.tw/ai_zone.php",
+        "help": "點擊查看AI專區課程列表"
+    },
 ]
 
 cols = []
@@ -186,8 +213,8 @@ st.title("📊 相關補充資訊與統計分析")
 st.markdown("---")
 
 
-# --- 3.1 資訊與社會防護 I：iTaiwan 熱點覆蓋趨勢 (iTaiwan_spots.csv) ---
-st.header("1. 資訊與社會防護：iTaiwan 熱點覆蓋趨勢")
+# --- 資訊與社會防護 I：iTaiwan 熱點覆蓋趨勢 (iTaiwan_spots.csv) ---
+st.header("資訊與社會防護｜數位基礎建設：iTaiwan 熱點覆蓋趨勢")
 st.caption("數據來源：iTaiwan熱點數。圖表顯示五大區域熱點數量隨西元年的變化。")
 plot_hotspots_trend(df_hotspots_melt)
 
@@ -200,21 +227,20 @@ with st.expander("查看原始數據：iTaiwan 熱點數"):
 st.markdown("---")
 
 
-# --- 3.2 勞動產業：AI 專才新增人數推估 (AI_Talent.csv) ---
-st.header("2. 勞動及產業轉型：AI 專才新增人數推估")
+# --- 勞動產業：AI 專才新增人數推估 (AI_Talent.csv) ---
+st.header("勞動及產業轉型｜人才需求：AI 專才新增人數推估")
 st.caption("數據來源：AI專才推估。圖表呈現三種不同情境下，AI 專才新增人數隨西元年的推估趨勢。")
 plot_talent_projection(df_talent_melt)
 
 with st.expander("查看原始數據：專才推估"):
-    # 修正點 4: 使用 df_talent 變數，現在它已被正確賦值
     st.dataframe(df_talent, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
 
-# --- 3.3 教育：AIGO 自製線上課程總覽 (AIGO_OnlineCourse.csv) ---
-st.header("3. 全民AI識能與教育：AIGO 自製線上課程總覽")
-st.caption("資料來源：政府開放資料平台，最新資訊請看AIGO網站。圖表顯示各年課程總時數。")
+# --- 教育：AIGO 自製線上課程總覽 (AIGO_OnlineCourse.csv) ---
+st.header("全民AI識能與教育：AIGO 自製線上課程總覽")
+st.caption("資料來源：政府開放資料平台，最新資訊請看AIGO網站。圖表顯示各年課程總時數。經濟部另提供中小企業線上課程，請看本頁最上方連結區域。")
 #plot_course_hours(df_courses)
 
 st.subheader("完整課程列表 (含連結)")
@@ -227,19 +253,18 @@ st.dataframe(df_course_list, use_container_width=True, hide_index=True)
 st.markdown("---")
 
 
-# --- 3.4 數位平權與共融治理：補助計畫 (AI_Grant.csv) ---
-st.header("4. 補助計畫列表")
+# ---數位平權與共融治理：補助計畫 (AI_Grant.csv) ---
+st.header("相關補助計畫列表")
 st.caption("資料來源：行政院智慧國家2.0推動小組。")
 
-# 顯示美化後的表格，並突出關鍵資訊
 df_grant_display = df_grant[['補助計畫', '發布日期', '主辦單位', '補助對象', '簡介與補助範疇']].copy()
 df_grant_display.rename(columns={'發布日期': '發布日期'}, inplace=True)
 st.dataframe(df_grant_display, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
-# --- 3.5 資訊與社會防護 II：語料庫採集趨勢 (corpus_collect.csv) ---
-st.header("5. 文化：全國語言推廣人員工作成果語料採集與紀錄則數統計")
+# --- 資訊與社會防護 II：語料庫採集趨勢 (corpus_collect.csv) ---
+st.header("文化：全國語言推廣人員工作成果語料採集與紀錄則數統計")
 st.caption("資料來源：原民會開放資料")
 plot_corpus_trend(df_corpus_agg)
 
