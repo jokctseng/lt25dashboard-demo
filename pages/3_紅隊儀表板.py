@@ -43,6 +43,7 @@ render_sidebar_auth(st.session_state.supabase, True)
 st.title("🛡️ 紅隊演練儀表板")
 TAIPEI_TZ = pytz.timezone('Asia/Taipei')
 current_time_taipei = datetime.datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')
+st.caption(f"數據更新頻率：每 1 秒自動刷新 (上次更新: {current_time_taipei} GMT+8)")
 st.markdown("---")
 
 # 定義類別與狀態
