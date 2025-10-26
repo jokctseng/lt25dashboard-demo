@@ -11,7 +11,7 @@ from auth_utils import init_global_session_state, render_page_sidebar_ui
 st.set_page_config(page_title="紅隊儀表板")
 
 # --- 初始化 ---
-init_global_session_state() 
+init_global_session_state() 
 
 supabase = st.session_state.get('supabase')
 is_connected = supabase is not None
@@ -21,11 +21,11 @@ render_page_sidebar_ui(supabase, is_connected)
 
 # 連線錯誤提示
 if not is_connected:
-    st.error("🚨 核心服務連線失敗，請檢查配置。")
-    st.stop()
+    st.error("🚨 核心服務連線失敗，請檢查配置。")
+    st.stop()
 
 
-# 獲取 Clients 和角色資訊
+# 獲取 Clients 和角色資訊 
 supabase_admin: Client = st.session_state.get('supabase_admin')
 current_user_id = str(st.session_state.user.id) if st.session_state.user else None
 is_logged_in = current_user_id is not None
@@ -33,9 +33,13 @@ is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
 
 # 版本控制
 if "dashboard_version" not in st.session_state:
-    st.session_state.dashboard_version = 0
+    st.session_state.dashboard_version = 0
+    
+# 訪客投票權限
+captcha_passed = st.session_state.get('captcha_passed', False)
 
-@st.cache_data(ttl=1) 
+
+@st.cache_data(ttl=1) 
 def fetch_dashboard_data(version): 
     """獲取建議列表及其投票狀態（呼叫 Supabase RPC）"""
     
@@ -45,6 +49,7 @@ def fetch_dashboard_data(version):
         return pd.DataFrame()
         
     try:
+        # 呼叫RPC
         response = supabase_client.rpc('get_suggestion_status', {}).execute()
         df = pd.DataFrame(response.data)
         
@@ -62,7 +67,7 @@ TAIPEI_TZ = pytz.timezone('Asia/Taipei')
 current_time_taipei = datetime.datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')
 
 st.title("🛡️ 紅隊演練儀表板")
-st.caption(f"數據更新頻率：每秒自動更新 (上次更新: {current_time_taipei})")
+st.caption(f"數據更新頻率：每 1 秒自動更新 (上次更新: {current_time_taipei} GMT+8)")
 st.markdown("---")
 
 # 定義類別與狀態
@@ -72,7 +77,7 @@ VOTE_STATUSES = ['所有狀態', '未解決', '部分解決', '已解決/有共�
 
 # --- CAPTCHA或登入狀態 ---
 
-if not is_logged_in and not st.session_state.get('captcha_passed', False):
+if not is_logged_in and not captcha_passed:
     st.subheader("🤖 驗證 (投票前必點)")
     st.info("請點選下方方塊，以啟用投票功能。")
     
@@ -98,7 +103,8 @@ selected_vote_status = col_status.selectbox(
     index=0
 )
 
-df = fetch_dashboard_data(st.session_state.dashboard_version) 
+# 傳遞版本號
+df = fetch_dashboard_data(supabase, st.session_state.dashboard_version) 
 
 # 執行篩選
 df_filtered = df.copy()
@@ -144,29 +150,25 @@ else:
 # --- 建議列表與投票區 ---
 
 def handle_vote(suggestion_id, vote_type):
-    """處理投票邏輯"""
+    """處理投票邏輯，將顯示名稱轉換為 Supabase 內部名稱"""
     
     current_user_id = str(st.session_state.user.id) if st.session_state.user else None
     is_logged_in = current_user_id is not None
     is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
     supabase_admin = st.session_state.get('supabase_admin')
+    
     can_interact = is_logged_in or st.session_state.get('captcha_passed', False)
     
     if not can_interact:
         st.error("投票失敗：請先登入或完成驗證！")
         return
-
-    if is_logged_in:
-        user_id_to_use = current_user_id # 真實登入 ID
-    elif st.session_state.get('captcha_passed', False):
-        user_id_to_use = st.session_state.guest_uuid 
-    else:
-        user_id_to_use = None 
-        
+    
     supabase_vote_type = '已解決' if vote_type == '已解決/有共識' else vote_type
     
     # 寫入邏輯
-    upsert_client = supabase_admin if is_admin_or_moderator and supabase_admin else st.session_state.supabase    
+    # 訪客和 Admin 寫入邏輯
+    upsert_client = supabase_admin if is_admin_or_moderator and supabase_admin else st.session_state.supabase
+    
     if upsert_client is None:
          st.error("投票失敗: 缺少連線客戶端。")
          return
@@ -181,22 +183,17 @@ def handle_vote(suggestion_id, vote_type):
             "vote_type": supabase_vote_type
         }, on_conflict="suggestion_id, user_id").execute()
         
-        # 只有在沒有異常時，才執行更新
+        # 只有在沒有異常時，才執行刷新
         st.toast(f"投票成功: {vote_type}")
-        st.cache_data.clear()
+        st.cache_data.clear() 
+        st.session_state.dashboard_version += 1 
         st.rerun() 
         
     except Exception as general_e:
-        error_msg = str(general_e)
-        if "duplicate key value violates unique constraint" in error_msg:
-             st.error("投票失敗：您已對此意見投過票。")
-        else:
-             st.error(f"投票失敗: {general_e}")
-        pass
+        st.error(f"投票失敗: {general_e}")
 
 
 def admin_delete_suggestion(suggestion_id):
-    
     is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
     supabase_admin = st.session_state.get('supabase_admin')
     
@@ -213,7 +210,7 @@ def admin_delete_suggestion(suggestion_id):
     try:
         delete_client.table('suggestions').delete().eq('id', suggestion_id).execute()
         st.toast("建議已刪除！")
-        fetch_dashboard_data.clear()
+        st.cache_data.clear()
         st.session_state.dashboard_version += 1
         st.rerun() 
     except Exception as e:
@@ -268,6 +265,7 @@ if not df_filtered.empty:
             col_par.markdown(f"🟡 **部分解決:** {int(item['partial_count'])}")
             col_res.markdown(f"🟢 **已解決/有共識:** {int(item['resolved_count'])}")
             
+            st.info("請登入後才能投票。")
 
 # --- 管理員/版主新增建議介面 (單筆 & 批次) ---
 
