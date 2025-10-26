@@ -4,11 +4,12 @@ import plotly.express as px
 from supabase import Client
 import time
 import os
+from auth_utils import render_sidebar_auth
 
 st.set_page_config(page_title="紅隊儀表板")
 
 # --- 初始化與配置 ---
-@st.cache_resource(ttl=None) # 避免重複創建
+@st.cache_resource(ttl=None)  
 def init_connection_for_page() -> Client:
     if "supabase" in st.secrets and "url" in st.secrets["supabase"]:
         try:
@@ -20,10 +21,8 @@ def init_connection_for_page() -> Client:
     return None 
 
 if "supabase" not in st.session_state or st.session_state.supabase is None:
-    # 嘗試自我初始化連線
     st.session_state.supabase = init_connection_for_page()
 
-# 如果連線仍為 None，顯示錯誤並中斷
 supabase = st.session_state.get('supabase')
 
 if supabase is None:
@@ -31,7 +30,6 @@ if supabase is None:
 else:
     supabase: Client = supabase
 
-    
 
 # 確定使用者 ID (用於投票)
 current_user_id = st.session_state.user.id if "user" in st.session_state and st.session_state.user else None
@@ -39,7 +37,7 @@ is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
 
 supabase: Client = st.session_state.supabase
-
+render_sidebar_auth(st.session_state.supabase, True)
 st.title("🛡️ 紅隊演練儀表板")
 st.caption(f"更新頻率：每秒自動更新 (上次更新: {time.strftime('%H:%M:%S')})")
 st.markdown("---")
@@ -50,12 +48,12 @@ VALID_CATEGORIES = ['建議', '洞察', '其他']
 VOTE_STATUSES = ['所有狀態', '未解決', '部分解決', '已解決/有共識']
 
 
-# --- 1. 即時數據讀取與快取 ---
+# --- 即時數據讀取 ---
 @st.cache_data(ttl=1) 
 def fetch_dashboard_data():
     """獲取建議列表及其投票狀態（呼叫 Supabase RPC）"""
     try:
-        # 呼叫 RPC 函式 (假設 RPC 結構與我們最終定義的匹配)
+        # 呼叫RPC
         response = supabase.rpc('get_suggestion_status', {}).execute()
         df = pd.DataFrame(response.data)
         
@@ -69,7 +67,7 @@ def fetch_dashboard_data():
         return pd.DataFrame()
 
 
-# --- 2. 篩選邏輯與介面 ---
+# --- 篩選邏輯與介面 ---
 
 col_cat, col_status = st.columns(2)
 
@@ -180,7 +178,7 @@ if not df_filtered.empty:
         col_meta.markdown(f"**[{item['cate']}]**")
         col_content.write(f"**{item['content']}**")
         
-        # 投票按鈕：**只有登入後才顯示**
+        # 投票按鈕登入後才顯示
         if is_logged_in:
             with col_un:
                 if st.button(f"🔴 未解決 ({int(item['unresolved_count'])})", key=f"un_{item['id']}", help="點擊投票為此狀態"):
@@ -209,7 +207,7 @@ if not df_filtered.empty:
         
         st.markdown("---")
 
-# --- 5. 管理員/版主新增建議介面 (單筆 & 批次) ---
+# --- 管理員/版主新增建議介面 (單筆 & 批次) ---
 
 # 管理員功能：**只有管理員/版主才顯示**
 if is_admin_or_moderator:
