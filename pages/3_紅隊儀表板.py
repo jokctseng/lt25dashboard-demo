@@ -155,12 +155,18 @@ def handle_vote(suggestion_id, vote_type):
     if not can_interact:
         st.error("投票失敗：請先登入或完成驗證！")
         return
-    
+
+    if is_logged_in:
+        user_id_to_use = current_user_id # 真實登入 ID
+    elif st.session_state.get('captcha_passed', False):
+        user_id_to_use = st.session_state.guest_uuid 
+    else:
+        user_id_to_use = None 
+        
     supabase_vote_type = '已解決' if vote_type == '已解決/有共識' else vote_type
     
     # 寫入邏輯
-    upsert_client = supabase_admin if is_admin_or_moderator and supabase_admin else st.session_state.supabase
-    
+    upsert_client = supabase_admin if is_admin_or_moderator and supabase_admin else st.session_state.supabase    
     if upsert_client is None:
          st.error("投票失敗: 缺少連線客戶端。")
          return
@@ -182,7 +188,11 @@ def handle_vote(suggestion_id, vote_type):
         st.rerun() 
         
     except Exception as general_e:
-        st.error(f"投票失敗: {general_e}")
+        error_msg = str(general_e)
+        if "duplicate key value violates unique constraint" in error_msg:
+             st.error("投票失敗：您已對此意見投過票。")
+        else:
+             st.error(f"投票失敗: {general_e}")
 
 
 def admin_delete_suggestion(suggestion_id):
