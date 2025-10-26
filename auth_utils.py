@@ -2,7 +2,6 @@ import streamlit as st
 from supabase import Client
 import uuid
 
-
 def fetch_user_profile(supabase_client: Client, user_id):
     """表格獲取使用者角色與暱稱"""
     try:
