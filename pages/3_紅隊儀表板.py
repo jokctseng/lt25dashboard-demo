@@ -150,7 +150,6 @@ def handle_vote(suggestion_id, vote_type):
     is_logged_in = current_user_id is not None
     is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
     supabase_admin = st.session_state.get('supabase_admin')
-    
     can_interact = is_logged_in or st.session_state.get('captcha_passed', False)
     
     if not can_interact:
@@ -176,7 +175,7 @@ def handle_vote(suggestion_id, vote_type):
             "vote_type": supabase_vote_type
         }, on_conflict="suggestion_id, user_id").execute()
         
-        # 只有在沒有拋出異常時，才執行刷新
+        # 只有在沒有異常時，才執行更新
         st.toast(f"投票成功: {vote_type}")
         fetch_dashboard_data.clear() 
         st.session_state.dashboard_version += 1 
@@ -259,7 +258,6 @@ if not df_filtered.empty:
             col_par.markdown(f"🟡 **部分解決:** {int(item['partial_count'])}")
             col_res.markdown(f"🟢 **已解決/有共識:** {int(item['resolved_count'])}")
             
-            st.info("請驗證後才能投票。")
 
 # --- 管理員/版主新增建議介面 (單筆 & 批次) ---
 
