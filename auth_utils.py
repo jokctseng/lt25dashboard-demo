@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase import Client
-
+import uuid
 
 
 def fetch_user_profile(supabase_client: Client, user_id):
@@ -14,7 +14,16 @@ def fetch_user_profile(supabase_client: Client, user_id):
         st.session_state.role = "user"
         st.session_state.username = None
 
-
+def auto_update_username(supabase: Client, new_username):
+    """無按鈕自動儲存暱稱"""
+    try:
+        if st.session_state.user:
+            supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
+            st.session_state.username = new_username
+            st.toast("暱稱已自動儲存！")
+    except Exception as e:
+        st.error(f"儲存失敗: {e}")
+        
 def render_sidebar_auth(supabase: Client | None, is_connected: bool):
     
     if not is_connected or supabase is None:
@@ -34,7 +43,7 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
         with st.sidebar.form("auth_form_page"):
             
             if auth_mode == "魔法連結":
-                st.info("輸入 Email，系統將發送無密碼登入連結至您的信箱。")
+                st.info("輸入 Email，系統將發送無密碼登入連結至您的信箱，新夥伴將自動註冊。")
                 email = st.text_input("Email", key="page_email_link")
                 submitted = st.form_submit_button("發送登入連結")
 
@@ -44,18 +53,20 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                         return
                     
                     try:
-                        # sign_in_with_otp
-                        supabase.auth.sign_in_with_otp(
-                            email,
-                            {
-                                "email_redirect_to": "https://lt25dashboard.streamlit.app/", 
-                                "create_user": True 
-                            }
-                        )
-                        st.sidebar.success(f"連結已發送！請檢查 {email} 點擊信件中的連結完成登入。")
+                        random_password = str(uuid.uuid4()) 
+                        supabase.auth.sign_up({"email": email, "password": random_password})
+                        st.sidebar.success(f"已建立帳號！請檢查 {email} 信箱點擊信件中的連結完成登入。")
                         
                     except Exception as e:
-                        st.sidebar.error(f"發送失敗: {e}")
+                        error_message = str(e)
+                        if "User already has an account" in error_message or "User already registered" in error_message:
+                            try:
+                                supabase.auth.sign_in_with_otp(email) 
+                                st.sidebar.success(f"您已註冊，登入連結已發送！請檢查 {email} 信箱。")
+                            except Exception as e_login:
+                                st.sidebar.error(f"登入連結發送失敗: {e_login}. 請檢查 Email。")
+                        else:
+                            st.sidebar.error(f"發送失敗: {error_message}. 請檢查 Email 格式。")
 
             else: # auth_mode == "id/pw"
                 auth_type = st.radio("選擇操作", ["登入", "註冊"], key="page_auth_type")
@@ -154,12 +165,4 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
             st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
 
 
-def auto_update_username(supabase: Client, new_username):
-    """無按鈕自動儲存暱稱"""
-    try:
-        if st.session_state.user:
-            supabase.table('profiles').update({"username": new_username}).eq('id', st.session_state.user.id).execute()
-            st.session_state.username = new_username
-            st.toast("暱稱已自動儲存！")
-    except Exception as e:
-        st.error(f"儲存失敗: {e}")
+
