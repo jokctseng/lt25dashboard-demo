@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import Client
 import uuid
+from streamlit_hcaptcha import hcaptcha 
 
 def fetch_user_profile(supabase_client: Client, user_id):
     """表格獲取使用者角色與暱稱"""
@@ -29,70 +30,46 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
         
-# --- 登入/註冊邏輯 ---
+# --- 登入/權限邏輯 ---
     if st.session_state.user is None:
-        st.sidebar.subheader("使用者登入/註冊")
+        st.sidebar.subheader("管理專用登入")
         
-        auth_mode = st.sidebar.radio(
-            "選擇登入方式", 
-            ["魔法連結", "帳號密碼"], 
-            key="auth_mode_select"
-        )
+        # --- OAuth / Web3 登入 ---
+        st.sidebar.markdown("##### 身分驗證 (Admin / Mod)")
+        col_oauth = st.sidebar.columns(2)
         
-        with st.sidebar.form("auth_form_page"):
+        # Google 登入
+        if col_oauth[0].button("🚀 Google 登入", use_container_width=True):
+            try:
+                response = supabase.auth.sign_in_with_oauth(
+                    "google", 
+                    options={"redirectTo": "https://lt25dashboard.streamlit.app/"} 
+                )
+                st.markdown(f'<script>window.location.href = "{response.url}";</script>', unsafe_allow_html=True)
+            except Exception as e:
+                st.sidebar.error(f"Google 登入失敗: {e}")
+
+        # Web3 登入
+        if col_oauth[1].button("🔗 Web3 登入", use_container_width=True):
+            st.sidebar.warning("Web3登入或許需要其他條件請看說明文件")
+
+        # 隱藏在 Expander 內 (備用通道)
+        with st.sidebar.expander("🔑 傳統 Email 登入"):
+            admin_email = st.text_input("Admin Email", key="admin_email_input")
+            admin_password = st.text_input("Admin 密碼", type="password", key="admin_password_input")
             
-            if auth_mode == "魔法連結":
-                st.info("輸入 Email，系統將發送無密碼登入連結至您的信箱，新夥伴將自動註冊。")
-                email = st.text_input("Email", key="page_email_link")
-                submitted = st.form_submit_button("發送登入連結")
-
-                if submitted:
-                    if not email:
-                        st.sidebar.warning("請輸入 Email 地址。")
-                        return
-                    
+            if st.button("管理員登入"):
+                if admin_email and admin_password:
                     try:
-                        random_password = str(uuid.uuid4()) 
-                        supabase.auth.sign_up({"email": email, "password": random_password})
-                        st.sidebar.success(f"已建立帳號！請檢查 {email} 信箱點擊信件中的連結完成登入。")
-                        
+                        user = supabase.auth.sign_in_with_password({"email": admin_email, "password": admin_password})
+                        st.session_state.user = user.user
+                        fetch_user_profile(supabase, user.user.id)
+                        st.rerun()
                     except Exception as e:
-                        error_message = str(e)
-                        if "User already has an account" in error_message or "User already registered" in error_message:
-                            try:
-                                supabase.auth.sign_in_with_otp(email) 
-                                st.sidebar.success(f"您已註冊，登入連結已發送！請檢查 {email} 信箱。")
-                            except Exception as e_login:
-                                st.sidebar.error(f"登入連結發送失敗: {e_login}. 請檢查 Email。")
-                        else:
-                            st.sidebar.error(f"發送失敗: {error_message}. 請檢查 Email 格式。")
+                        st.error("管理員認證失敗。")
 
-            else: # auth_mode == "id/pw"
-                auth_type = st.radio("選擇操作", ["登入", "註冊"], key="page_auth_type")
-                email = st.text_input("Email", key="page_email_pwd")
-                password = st.text_input("密碼", type="password", key="page_password_input")
-                submitted = st.form_submit_button(auth_type) # 切換按鈕
-
-                if submitted:
-                    if not email or not password:
-                        st.sidebar.warning("請輸入 Email 和密碼。")
-                        return
-                        
-                    try:
-                        if auth_type == "註冊":
-                            # sign_up
-                            user = supabase.auth.sign_up({"email": email, "password": password})
-                            st.success("註冊成功！請檢查 Email 以驗證帳號。")
-                        else:
-                            #  sign_in_with_password
-                            user = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                            st.session_state.user = user.user
-                            fetch_user_profile(supabase, user.user.id)
-                            st.rerun()
-                    except Exception as e:
-                        st.sidebar.error(f"認證失敗: {e}")
-
-
+        st.sidebar.markdown("---")
+        st.sidebar.info("一般使用者無需登入。")
         # --- 忘記密碼 ---
         st.sidebar.markdown("---") 
         if st.sidebar.button("忘記密碼？"):
