@@ -21,47 +21,87 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
         
-    # --- 登入/註冊 ---
+# --- 登入/註冊邏輯 ---
     if st.session_state.user is None:
         st.sidebar.subheader("使用者登入/註冊")
         
+        auth_mode = st.sidebar.radio(
+            "選擇登入方式", 
+            ["魔法連結", "帳號密碼"], 
+            key="auth_mode_select"
+        )
+        
         with st.sidebar.form("auth_form_page"):
-            auth_type = st.radio("選擇操作", ["登入", "註冊"], key="page_auth_type")
-            email = st.text_input("Email", key="page_email_input")
-            password = st.text_input("密碼", type="password", key="page_password_input")
-            submitted = st.form_submit_button("執行")
+            
+            if auth_mode == "魔法連結":
+                st.info("輸入 Email，系統將發送無密碼登入連結至您的信箱。")
+                email = st.text_input("Email", key="page_email_link")
+                submitted = st.form_submit_button("發送登入連結")
 
-            if submitted:
-                try:
-                    if auth_type == "註冊":
-                        user = supabase.auth.sign_up({"email": email, "password": password})
-                        st.success("註冊成功！請檢查 Email 以驗證帳號。")
-                    else:
-                        user = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                        st.session_state.user = user.user
-                        fetch_user_profile(supabase, user.user.id)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"認證失敗: {e}")
+                if submitted:
+                    if not email:
+                        st.sidebar.warning("請輸入 Email 地址。")
+                        return
+                    
+                    try:
+                        # sign_in_with_otp
+                        supabase.auth.sign_in_with_otp(
+                            email=email,
+                            options={
+                                "email_redirect_to": "https://lt25dashboard.streamlit.app/", 
+                                "create_user": True 
+                            }
+                        )
+                        st.sidebar.success(f"連結已發送！請檢查 {email} 點擊信件中的連結完成登入。")
+                        
+                    except Exception as e:
+                        st.sidebar.error(f"發送失敗: {e}")
+
+            else: # auth_mode == "id/pw"
+                auth_type = st.radio("選擇操作", ["登入", "註冊"], key="page_auth_type")
+                email = st.text_input("Email", key="page_email_pwd")
+                password = st.text_input("密碼", type="password", key="page_password_input")
+                submitted = st.form_submit_button(auth_type) # 按鈕文字根據選擇切換
+
+                if submitted:
+                    if not email or not password:
+                        st.sidebar.warning("請輸入 Email 和密碼。")
+                        return
+                        
+                    try:
+                        if auth_type == "註冊":
+                            # sign_up
+                            user = supabase.auth.sign_up({"email": email, "password": password})
+                            st.success("註冊成功！請檢查 Email 以驗證帳號。")
+                        else:
+                            #  sign_in_with_password
+                            user = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                            st.session_state.user = user.user
+                            fetch_user_profile(supabase, user.user.id)
+                            st.rerun()
+                    except Exception as e:
+                        st.sidebar.error(f"認證失敗: {e}")
+
 
         # --- 忘記密碼 ---
-        st.sidebar.markdown("---") # 分隔線
+        st.sidebar.markdown("---") 
         if st.sidebar.button("忘記密碼？"):
-            st.session_state.show_reset_form = True
+            st.session_state.show_reset_form = True 
 
         if st.session_state.get("show_reset_form", False):
             with st.sidebar.form("reset_password_form"):
                 st.subheader("重設密碼")
-                reset_email = st.text_input("請輸入您的 Email 以接收重設連結")
+                reset_email = st.text_input("請輸入您的 Email 以接收重設連結", key="reset_email_input")
                 reset_submitted = st.form_submit_button("發送重設密碼郵件")
 
                 if reset_submitted:
                     if reset_email:
                         try:
+                            # reset_password_for_email
                             supabase.auth.reset_password_for_email(
                                 email=reset_email,
                                 options={
-                                    "redirect_to": "https://lt25dashboard.streamlit.app/" 
+                                    "redirect_to": "https://your-app-name.streamlit.app/" 
                                 }
                             )
                             st.sidebar.success(f"已發送密碼重設連結至 {reset_email}，請檢查您的信箱。")
