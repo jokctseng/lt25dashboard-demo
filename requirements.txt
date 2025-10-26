@@ -3,5 +3,4 @@ streamlit
 supabase
 pandas
 plotly
-hcaptcha
 uuid
