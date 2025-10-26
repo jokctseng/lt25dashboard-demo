@@ -4,3 +4,4 @@ supabase
 pandas
 plotly
 streamlit_hcaptcha
+uuid
