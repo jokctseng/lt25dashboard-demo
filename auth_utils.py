@@ -30,44 +30,58 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
         
-# --- 登入/權限邏輯 ---
+def render_sidebar_auth(supabase: Client | None, is_connected: bool):
+    """
+    渲染 Admin 專用登入入口和用戶資訊。
+    """
+    
+    if not is_connected or supabase is None:
+        st.sidebar.error("連線錯誤，無法登入/註冊。")
+        return
+        
+    # --- 登入/權限邏輯 ---
     if st.session_state.user is None:
-        st.sidebar.subheader("管理專用登入")
-        
-        # --- OAuth ---
-        st.sidebar.markdown("##### 身分驗證 (Admin / Mod)")
-        col_oauth = st.sidebar.columns(2)
-        
-        # Google 登入
-        if col_oauth[0].button("🚀 Google 登入", use_container_width=True):
-            try:
-                response = supabase.auth.sign_in_with_oauth(
-                    "google", 
-                    options={"redirectTo": "https://lt25dashboard.streamlit.app/"} 
-                )
-                st.markdown(f'<script>window.location.href = "{response.url}";</script>', unsafe_allow_html=True)
-            except Exception as e:
-                st.sidebar.error(f"Google 登入失敗: {e}")
+        st.sidebar.subheader("🔑 權限認證入口")
+        st.sidebar.info("一般訪客無需登入。僅供管理員/版主使用。")
 
-
-
-        # 隱藏在 Expander 內 (備用通道)
-        with st.sidebar.expander("🔑 傳統 Email 登入"):
-            admin_email = st.text_input("Admin Email", key="admin_email_input")
-            admin_password = st.text_input("Admin 密碼", type="password", key="admin_password_input")
+        # --- Admin 專用登入區塊 ---
+        with st.sidebar.expander("管理員/版主登入", expanded=True):
+                        auth_mode = st.radio(
+                "選擇登入方式", 
+                ["Google OAuth", "Email/密碼"], 
+                key="admin_auth_mode_select"
+            )
             
-            if st.button("管理員登入"):
-                if admin_email and admin_password:
+            st.markdown("---")
+            
+            if auth_mode == "Google OAuth":
+                if st.button("🚀 Google 登入)", use_container_width=True):
                     try:
-                        user = supabase.auth.sign_in_with_password({"email": admin_email, "password": admin_password})
-                        st.session_state.user = user.user
-                        fetch_user_profile(supabase, user.user.id)
-                        st.rerun()
+                        response = supabase.auth.sign_in_with_oauth(
+                            "google", 
+                            options={"redirectTo": "https://lt25dashboard.streamlit.app/"}
+                        )
+                        st.markdown(f'<script>window.location.href = "{response.url}";</script>', unsafe_allow_html=True)
+                        
                     except Exception as e:
-                        st.error("管理員認證失敗。")
-
-        st.sidebar.markdown("---")
-        st.sidebar.info("一般使用者無需登入。")
+                        st.sidebar.error(f"Google 登入失敗: {e}")
+            
+            else: #Email/密碼登入
+                with st.form("admin_pwd_form"):
+                    admin_email = st.text_input("管理員電郵", key="admin_email_input")
+                    admin_password = st.text_input("管理員密碼", type="password", key="admin_password_input")
+                    
+                    if st.form_submit_button("執行登入"):
+                        if admin_email and admin_password:
+                            try:
+                                user = supabase.auth.sign_in_with_password({"email": admin_email, "password": admin_password})
+                                st.session_state.user = user.user
+                                fetch_user_profile(supabase, user.user.id)
+                                st.rerun()
+                            except Exception as e:
+                                st.error("登入失敗，請檢查 Email/密碼。")
+                        else:
+                            st.error("請輸入憑證。")
         # --- 忘記密碼 ---
         st.sidebar.markdown("---") 
         if st.sidebar.button("忘記密碼？"):
