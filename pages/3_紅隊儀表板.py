@@ -22,7 +22,7 @@ render_page_sidebar_ui(supabase, is_connected)
 # 連線錯誤提示
 if not is_connected:
     st.error("🚨 核心服務連線失敗，請檢查配置。")
-    st.stop()
+    st.stop()
 
 
 # 獲取 Clients 和角色資訊 
