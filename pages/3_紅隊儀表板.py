@@ -104,7 +104,7 @@ selected_vote_status = col_status.selectbox(
 )
 
 # 傳遞版本號
-df = fetch_dashboard_data(supabase, st.session_state.dashboard_version) 
+df = fetch_dashboard_data(st.session_state.dashboard_version) 
 
 # 執行篩選
 df_filtered = df.copy()
