@@ -108,20 +108,18 @@ def init_connection(is_admin=False) -> Client | None:
             key = config_section.get("anon_key")
 
         if key:
-            # 使用 create_client 建立連線
             return create_client(url, key)
         else:
             return None
     except Exception:
         return None
 
-# 確保連線被執行，並將 Client 寫入 Session State
 if st.session_state.supabase is None:
     st.session_state.supabase = init_connection(is_admin=False)
 if st.session_state.supabase_admin is None:
     st.session_state.supabase_admin = init_connection(is_admin=True)
 
-# 獲取 Clients 和連線狀態
+# 獲取 Clients 和連線狀態 
 is_connected = st.session_state.supabase is not None
 supabase = st.session_state.supabase
 supabase_admin = st.session_state.supabase_admin
@@ -136,7 +134,7 @@ if is_connected and st.session_state.user is None:
             fetch_user_profile(supabase, session.user.id) 
             st.rerun() 
     except Exception:
-        pass # Session 無效或過期，保持未登入狀態
+        pass
 
 # --- 置頂公告區塊 ---
 st.warning("""
@@ -147,7 +145,7 @@ st.warning("""
 
 # --- 儀表板主邏輯 ---
 def main():
-    render_sidebar_auth(supabase, is_connected)
+    render_page_sidebar_ui(supabase, is_connected)
     if st.session_state.user is None:
         st.subheader("平台功能總覽")
         page_summary = [
