@@ -24,12 +24,8 @@ def auto_update_username(supabase: Client, new_username):
     except Exception as e:
         st.error(f"儲存失敗: {e}")
         
-def render_sidebar_auth(supabase: Client | None, is_connected: bool):
-    
-    if not is_connected or supabase is None:
-        st.sidebar.error("連線錯誤，無法登入/註冊。")
-        return
-        
+# --- 主渲染函式：只定義一次，並隔離 Admin 登入 ---
+
 def render_sidebar_auth(supabase: Client | None, is_connected: bool):
     """
     渲染 Admin 專用登入入口和用戶資訊。
@@ -41,35 +37,39 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
         
     # --- 登入/權限邏輯 ---
     if st.session_state.user is None:
+        
+        # 訪客模式：只顯示 Admin 入口
         st.sidebar.subheader("🔑 權限認證入口")
-        st.sidebar.info("一般訪客無需登入。僅供管理員/版主使用。")
+        st.sidebar.info("一般訪客無需登入。此通道僅供管理員/版主使用。")
 
         # --- Admin 專用登入區塊 ---
         with st.sidebar.expander("管理員/版主登入", expanded=True):
-                        auth_mode = st.radio(
+            
+            # 兩種登入方式選擇
+            auth_mode = st.radio(
                 "選擇登入方式", 
-                ["Google OAuth", "Email/密碼"], 
+                ["Google OAuth (推薦)", "傳統 Email/密碼"], 
                 key="admin_auth_mode_select"
             )
             
             st.markdown("---")
             
-            if auth_mode == "Google OAuth":
-                if st.button("🚀 Google 登入)", use_container_width=True):
+            if auth_mode == "Google OAuth (推薦)":
+                if st.button("🚀 Google 登入 (Admin)", use_container_width=True):
                     try:
                         response = supabase.auth.sign_in_with_oauth(
                             "google", 
-                            options={"redirectTo": "https://lt25dashboard.streamlit.app/"}
+                            options={"redirectTo": "https://lt25.streamlit.app/"}
                         )
                         st.markdown(f'<script>window.location.href = "{response.url}";</script>', unsafe_allow_html=True)
                         
                     except Exception as e:
                         st.sidebar.error(f"Google 登入失敗: {e}")
             
-            else: #Email/密碼登入
+            else: # Email/密碼登入
                 with st.form("admin_pwd_form"):
-                    admin_email = st.text_input("管理員電郵", key="admin_email_input")
-                    admin_password = st.text_input("管理員密碼", type="password", key="admin_password_input")
+                    admin_email = st.text_input("Admin Email", key="admin_email_input")
+                    admin_password = st.text_input("Admin 密碼", type="password", key="admin_password_input")
                     
                     if st.form_submit_button("執行登入"):
                         if admin_email and admin_password:
@@ -82,33 +82,11 @@ def render_sidebar_auth(supabase: Client | None, is_connected: bool):
                                 st.error("登入失敗，請檢查 Email/密碼。")
                         else:
                             st.error("請輸入憑證。")
-        # --- 忘記密碼 ---
-        st.sidebar.markdown("---") 
-        if st.sidebar.button("忘記密碼？"):
-            st.session_state.show_reset_form = True 
-
-        if st.session_state.get("show_reset_form", False):
-            with st.sidebar.form("reset_password_form"):
-                st.subheader("重設密碼")
-                reset_email = st.text_input("請輸入您的 Email 以接收重設連結", key="reset_email_input")
-                reset_submitted = st.form_submit_button("發送重設密碼郵件")
-
-                if reset_submitted:
-                    if reset_email:
-                        try:
-                            # reset_password_for_email
-                            supabase.auth.reset_password_for_email(
-                                email=reset_email,
-                                options={
-                                    "redirect_to": "https://lt25dashboard.streamlit.app/" 
-                                }
-                            )
-                            st.sidebar.success(f"已發送密碼重設連結至 {reset_email}，請檢查您的信箱。")
-                            st.session_state.show_reset_form = False 
-                        except Exception as e:
-                            st.sidebar.error(f"發送失敗: {e}")
-                    else:
-                        st.sidebar.warning("請輸入 Email 地址。")
+                        
+            # 忘記密碼按鈕
+            st.markdown("---")
+            if st.button("忘記密碼？", key="forget_password_button"):
+                 st.info("請聯繫系統管理員協助重設密碼。") 
     # --- 已登入邏輯 ---
     else:
         # 已登入：顯示稱謂
