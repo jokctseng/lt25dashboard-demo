@@ -3,7 +3,7 @@ from supabase import create_client, Client
 import pandas as pd
 import os 
 import time
-from auth_utils import fetch_user_profile, render_sidebar_auth
+from auth_utils import init_global_session_state, render_page_sidebar_ui
 
 # ---設置與初始化 ---
 st.set_page_config(
@@ -154,7 +154,7 @@ if is_connected and st.session_state.user is None:
 
 # --- 儀表板主邏輯 ---
 def main():
-    render_sidebar_auth(supabase, is_connected)
+    render_page_sidebar_ui(supabase, is_connected)
     if st.session_state.user is None:
         st.subheader("平台功能總覽")
         page_summary = [
