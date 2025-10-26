@@ -26,7 +26,7 @@ if "supabase" not in st.session_state or st.session_state.supabase is None:
 supabase = st.session_state.get('supabase')
 
 if supabase is None:
-    st.error("🚨 核心服務連線失敗。頁面已載入，但數據無法獲取。請檢查主頁連線。")    
+    st.error("🚨 頁面已載入，但無法獲取數據，請再次點擊主頁，若仍失敗請洽管理員。")    
 else:
     supabase: Client = supabase
 
@@ -39,7 +39,7 @@ is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] i
 supabase: Client = st.session_state.supabase
 render_sidebar_auth(st.session_state.supabase, True)
 st.title("🛡️ 紅隊演練儀表板")
-st.caption(f"更新頻率：每秒自動更新 (上次更新: {time.strftime('%H:%M:%S')})")
+st.caption(f"上次更新: {time.strftime('%H:%M:%S')}")
 st.markdown("---")
 
 # 定義類別與狀態
