@@ -71,7 +71,7 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         st.sidebar.markdown("---") 
         
 # --- 管理登入區塊---
-                with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
+        with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
             
             st.info("此區域僅供管理員/版主使用。")
             
