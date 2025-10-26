@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd 
-from auth_utils import init_global_session_state, render_page_sidebar_ui
+from auth_utils import init_global_session_state, render_page_sideba_auth
 
 st.set_page_config(page_title="致謝與授權")
 init_global_session_state() 
 supabase = st.session_state.get('supabase')
 is_connected = supabase is not None
-render_page_sidebar_ui(supabase, is_connected)
+render_page_sidebar_auth(supabase, is_connected)
 
 st.title("🤝 專案致謝與貢獻者名單")
 st.caption("本平台能夠順利上線，感謝所有貢獻者的時間、專業與支持。")
