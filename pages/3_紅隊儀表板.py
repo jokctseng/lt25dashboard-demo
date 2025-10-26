@@ -67,7 +67,7 @@ TAIPEI_TZ = pytz.timezone('Asia/Taipei')
 current_time_taipei = datetime.datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')
 
 st.title("🛡️ 紅隊演練儀表板")
-st.caption(f"數據更新頻率：每 1 秒自動更新 (上次更新: {current_time_taipei} GMT+8)")
+st.caption(f"更新頻率：每秒自動更新 (上次更新: {current_time_taipei})")
 st.markdown("---")
 
 # 定義類別與狀態
