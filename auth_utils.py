@@ -3,11 +3,10 @@ from supabase import Client
 import uuid 
 from supabase import create_client 
 
-# --- Session State 初始化 ---
+# --- session state  ---
 
 def init_global_session_state():
     """初始化所有 Streamlit Session 狀態。"""
-    # 註冊使用者狀態
     if "user" not in st.session_state:
         st.session_state.user = None
     if "role" not in st.session_state:
@@ -17,15 +16,15 @@ def init_global_session_state():
         
     # 訪客專用狀態 
     if "guest_username" not in st.session_state:
-        st.session_state.guest_username = "匿名演練選手" 
+        st.session_state.guest_username = "匿名演練選手"
     if "captcha_passed" not in st.session_state:
         st.session_state.captcha_passed = False 
 
 
-# --- Helper ---
+# --- Helper Functions---
 
 def fetch_user_profile(supabase_client: Client, user_id):
-    """獲取使用者角色與暱稱"""
+    """從 profiles 表格獲取使用者角色與暱稱"""
     try:
         if supabase_client:
             response = supabase_client.table('profiles').select("role, username").eq('id', user_id).single().execute()
@@ -46,36 +45,38 @@ def auto_update_username(supabase: Client, new_username):
         st.error(f"儲存失敗: {e}")
 
 
-# --- 側邊欄渲染---
+# --- 介面渲染 ---
 
 def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
     """
-    渲染側邊欄：Email/密碼登入入口 + 已登入資訊 + 訪客暱稱設定。
+    渲染側邊欄：統一的 Email/密碼登入入口 + 已登入資訊 + 訪客暱稱設定。
     """
     
-    init_global_session_state() # 確保所有狀態都已初始化
+    init_global_session_state() 
 
     if not is_connected or supabase is None:
         st.sidebar.error("連線錯誤，無法登入/註冊。")
         return
-    # --- 訪客暱稱設定---
+        
+    # --- 訪客暱稱輸入框  ---
     if st.session_state.user is None:
+        
         st.sidebar.subheader("😊 匿名演練選手設定")
         
         st.session_state.guest_username = st.sidebar.text_input(
-            "發言暱稱",
+            "匿名發言暱稱 (限本次瀏覽)",
             value=st.session_state.guest_username,
             key="sidebar_guest_username_input" 
         )
-        st.sidebar.caption("暱稱將在所有互動中沿用。")
-        st.sidebar.markdown("---") 
+        st.sidebar.caption("您的暱稱將在所有互動功能中沿用。")
+        st.sidebar.markdown("---")
         
-# --- 管理登入區塊---
+        # --- 管理登入折疊區塊 ---
+        
         with st.sidebar.expander("🔑 管理員/版主登入入口", expanded=False):
             
-            st.info("此區域僅供管理員/版主使用。")
-            
-            # 帳密登入
+            st.info("此區僅供管理員/版主使用")            
+
             with st.form("admin_auth_form"):
                 
                 email = st.text_input("Email", key="login_email_input")
@@ -141,4 +142,3 @@ def render_page_sidebar_ui(supabase: Client | None, is_connected: bool):
         if st.session_state.role == 'system_admin':
             st.sidebar.markdown("---")
             st.sidebar.warning("🔑 系統管理員：請至 [Admin Dashboard] 頁面管理使用者權限與個資。")
-    
