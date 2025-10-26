@@ -183,8 +183,7 @@ def handle_vote(suggestion_id, vote_type):
         
         # 只有在沒有異常時，才執行更新
         st.toast(f"投票成功: {vote_type}")
-        fetch_dashboard_data.clear() 
-        st.session_state.dashboard_version += 1 
+        st.cache_data.clear()
         st.rerun() 
         
     except Exception as general_e:
@@ -193,6 +192,7 @@ def handle_vote(suggestion_id, vote_type):
              st.error("投票失敗：您已對此意見投過票。")
         else:
              st.error(f"投票失敗: {general_e}")
+        pass
 
 
 def admin_delete_suggestion(suggestion_id):
