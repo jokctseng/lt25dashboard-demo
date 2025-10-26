@@ -5,6 +5,7 @@ from supabase import create_client, Client
 import time
 import uuid 
 import os 
+from auth_utils import render_sidebar_auth
 
 # 設置頁面標題
 st.set_page_config(page_title="共創新聞牆")
@@ -37,6 +38,7 @@ current_user_id = str(st.session_state.user.id) if "user" in st.session_state an
 is_logged_in = current_user_id is not None
 is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator'] if "role" in st.session_state else False
 
+render_sidebar_auth(st.session_state.supabase, True) 
 
 st.title("📢 共創新聞牆")
 st.markdown("---")
@@ -64,7 +66,6 @@ def fetch_posts_and_reactions(version):
         
         # 查詢 2 (作者暱稱和角色)
         if not df_posts.empty:
-            # 確保 posts ID 是字串
             df_posts['id'] = df_posts['id'].astype(str)
             df_posts['user_id'] = df_posts['user_id'].astype(str)
             user_ids = df_posts['user_id'].unique().tolist()
@@ -86,7 +87,7 @@ def fetch_posts_and_reactions(version):
         else:
             df_reactions = empty_reactions_df.copy()
 
-        # 確保必要的欄位存在
+
         if 'username' not in df_merged.columns:
             df_merged['username'] = None
         if 'role' not in df_merged.columns:
@@ -126,7 +127,7 @@ def submit_post(topic, post_type, content):
     except Exception as e:
         st.error(f"發布失敗: {e}")
 
-# --- React 處理邏輯 ---
+# --- React處理 ---
 def handle_reaction(post_id, reaction_type):
     try:
         if not is_logged_in:
@@ -151,7 +152,7 @@ def handle_reaction(post_id, reaction_type):
     except Exception as e:
         st.error(f"操作失敗: {e}")
 
-# --- 管理員刪除貼文邏輯---
+# --- 管理員刪除貼文---
 def delete_post(post_id):
     if is_admin_or_moderator:
         try:
