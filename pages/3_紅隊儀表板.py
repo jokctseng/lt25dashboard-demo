@@ -11,7 +11,7 @@ from auth_utils import init_global_session_state, render_page_sidebar_ui
 st.set_page_config(page_title="紅隊儀表板")
 
 # --- 初始化 ---
-init_global_session_state() 
+init_global_session_state()
 
 supabase = st.session_state.get('supabase')
 is_connected = supabase is not None
