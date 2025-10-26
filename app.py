@@ -4,6 +4,7 @@ import pandas as pd
 import os 
 import time
 from auth_utils import init_global_session_state, render_page_sidebar_ui, fetch_user_profile
+
 init_global_session_state()
 
 # ---設置與初始化 ---
@@ -91,8 +92,8 @@ st.markdown(
 st.markdown("---")
 st.title("全國青年會議協作與意見彙整平台")
 
-
 def init_connection(is_admin=False) -> Client | None:
+    """初始化 Supabase 連線"""
     
     if "supabase" not in st.secrets or "url" not in st.secrets["supabase"]:
         return None
@@ -107,22 +108,26 @@ def init_connection(is_admin=False) -> Client | None:
             key = config_section.get("anon_key")
 
         if key:
+            # 使用 create_client 建立連線
             return create_client(url, key)
         else:
             return None
     except Exception:
         return None
 
+# 確保連線被執行，並將 Client 寫入 Session State
 if st.session_state.supabase is None:
     st.session_state.supabase = init_connection(is_admin=False)
 if st.session_state.supabase_admin is None:
     st.session_state.supabase_admin = init_connection(is_admin=True)
 
+# 獲取 Clients 和連線狀態
 is_connected = st.session_state.supabase is not None
 supabase = st.session_state.supabase
-supabase_admin = st.session_state.supabase_admin 
+supabase_admin = st.session_state.supabase_admin
 
-# --- RLS Session 狀態恢復機制 ---
+
+# --- RLS狀態恢復機制 ---
 if is_connected and st.session_state.user is None:
     try:
         session = supabase.auth.get_session()
@@ -131,17 +136,18 @@ if is_connected and st.session_state.user is None:
             fetch_user_profile(supabase, session.user.id) 
             st.rerun() 
     except Exception:
-        pass
+        pass # Session 無效或過期，保持未登入狀態
 
 # --- 置頂公告區塊 ---
 st.warning("""
-🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
+🚨 **重要聲明：** 本平台由全國青年會議青年工作小組設置與維護，輸入意見及投票需註冊並以電郵驗證，但使用本平台非必須項。本平台所有紅隊演練的投票及共創新聞牆回饋均為**公開資訊**。
 為保障個資，強烈建議您不要在留言內容中透露任何個人資訊。
 """)
 
+
 # --- 儀表板主邏輯 ---
 def main():
-    render_page_sidebar_ui(supabase, is_connected)
+    render_sidebar_auth(supabase, is_connected)
     if st.session_state.user is None:
         st.subheader("平台功能總覽")
         page_summary = [
