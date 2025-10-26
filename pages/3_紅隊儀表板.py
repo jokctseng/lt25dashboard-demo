@@ -166,6 +166,9 @@ def admin_delete_suggestion(suggestion_id):
 
 st.subheader("🗳️ 建議列表與投票")
 st.caption(f"目前顯示 {len(df_filtered)} 筆建議 (總計 {len(df)} 筆)")
+if not is_logged_in:
+    st.info("💡 請登入後才能對建議進行投票。")
+    st.markdown("---") 
 
 if not df_filtered.empty:
     suggestions = df_filtered.sort_values('created_at', ascending=False).to_dict('records')
@@ -195,9 +198,7 @@ if not df_filtered.empty:
             col_par.markdown(f"部分解決: **{int(item['partial_count'])}**")
             col_res.markdown(f"已解決/有共識: **{int(item['resolved_count'])}**")
             
-            if index == 0 and show_warning: 
-                 st.warning("請註冊並登入後才能投票。")
-                 show_warning = False
+
 
         # 管理員/版主刪除按鈕
         if is_admin_or_moderator:
