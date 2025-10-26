@@ -11,7 +11,7 @@ from auth_utils import init_global_session_state, render_page_sidebar_ui
 st.set_page_config(page_title="紅隊儀表板")
 
 # --- 初始化 ---
-init_global_session_state()
+init_global_session_state() 
 
 supabase = st.session_state.get('supabase')
 is_connected = supabase is not None
@@ -21,11 +21,11 @@ render_page_sidebar_ui(supabase, is_connected)
 
 # 連線錯誤提示
 if not is_connected:
-    st.error("🚨 核心服務連線失敗，請檢查配置。")
-    st.stop()
+    st.error("🚨 核心服務連線失敗，請檢查配置。")
+    st.stop()
 
 
-# 獲取 Clients 和角色資訊 
+# 獲取 Clients 和角色資訊
 supabase_admin: Client = st.session_state.get('supabase_admin')
 current_user_id = str(st.session_state.user.id) if st.session_state.user else None
 is_logged_in = current_user_id is not None
@@ -33,10 +33,12 @@ is_admin_or_moderator = st.session_state.role in ['system_admin', 'moderator']
 
 # 版本控制
 if "dashboard_version" not in st.session_state:
-    st.session_state.dashboard_version = 0
+    st.session_state.dashboard_version = 0
 
-@st.cache_data(ttl=1) 
-def fetch_dashboard_data(version):     
+@st.cache_data(ttl=1) 
+def fetch_dashboard_data(version): 
+    """獲取建議列表及其投票狀態（呼叫 Supabase RPC）"""
+    
     supabase_client = st.session_state.get('supabase')
     if supabase_client is None:
         st.error("資料讀取失敗：Supabase 客戶端未初始化。")
@@ -55,7 +57,7 @@ def fetch_dashboard_data(version):
         st.error(f"資料讀取失敗，請檢查 Supabase 後端: {e}")
         return pd.DataFrame()
         
-# --- Time Zone ---
+# --- Time Setup ---
 TAIPEI_TZ = pytz.timezone('Asia/Taipei')
 current_time_taipei = datetime.datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')
 
@@ -72,7 +74,7 @@ VOTE_STATUSES = ['所有狀態', '未解決', '部分解決', '已解決/有共�
 
 if not is_logged_in and not st.session_state.get('captcha_passed', False):
     st.subheader("🤖 驗證 (投票前必點)")
-    st.info("請點選下方方塊，啟用投票功能。")
+    st.info("請點選下方方塊，以啟用投票功能。")
     
     if st.checkbox("我不是機器人 (點擊驗證)", key="captcha_vote_checkbox"):
          st.session_state.captcha_passed = True
@@ -142,7 +144,7 @@ else:
 # --- 建議列表與投票區 ---
 
 def handle_vote(suggestion_id, vote_type):
-    """處理投票邏輯，將顯示名稱轉換為 Supabase 內部名稱"""
+    """處理投票邏輯"""
     
     current_user_id = str(st.session_state.user.id) if st.session_state.user else None
     is_logged_in = current_user_id is not None
@@ -167,13 +169,14 @@ def handle_vote(suggestion_id, vote_type):
     try:
         user_id_to_use = current_user_id if is_logged_in else None
         
-        # 進行投票寫入
+        # 使用 Admin/Anon Client 進行投票寫入
         upsert_client.table('votes').upsert({
             "suggestion_id": suggestion_id, 
             "user_id": user_id_to_use, 
             "vote_type": supabase_vote_type
         }, on_conflict="suggestion_id, user_id").execute()
         
+        # 只有在沒有拋出異常時，才執行刷新
         st.toast(f"投票成功: {vote_type}")
         fetch_dashboard_data.clear() 
         st.session_state.dashboard_version += 1 
@@ -256,7 +259,7 @@ if not df_filtered.empty:
             col_par.markdown(f"🟡 **部分解決:** {int(item['partial_count'])}")
             col_res.markdown(f"🟢 **已解決/有共識:** {int(item['resolved_count'])}")
             
-            st.info("請登入後才能投票。")
+            st.info("請驗證後才能投票。")
 
 # --- 管理員/版主新增建議介面 (單筆 & 批次) ---
 
