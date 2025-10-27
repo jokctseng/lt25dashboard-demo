@@ -27,7 +27,7 @@ st.markdown(
     /* 輸入框、選單及數據框 */
     .stSelectbox, .stTextInput, .stTextArea, .stExpander, [data-testid="stDataFrame"], .stTabs {
         border-radius: 12px;
-        background-color: #282828; 
+        background-color: var(--secondary-background-color); 
         padding: 10px;
     }
 
@@ -41,13 +41,14 @@ st.markdown(
     
     /* 側邊欄 */
     [data-testid="stSidebar"] {
-        background-color: #191414; 
+        background-color: var(--secondary-background-color); 
         border-right: 3px solid #1DB954; 
+        color: var(--text-color);
     }
 
     /* 標題層次 */
     h1, h2, h3, h4 {
-        color: #FFFFFF !important; 
+        color: var(--text-color) !important; 
         font-weight: 600;
     }
     
@@ -57,13 +58,13 @@ st.markdown(
         left: 0;
         bottom: 0;
         width: 100%;
-        background-color: #191414; 
-        color: #AAAAAA; 
+        background-color: var(--secondary-background-color); 
+        color: var(--text-color); 
         text-align: center;
         padding: 8px 0;
         font-size: 0.75rem;
         z-index: 10;
-        border-top: 1px solid #282828;
+        border-top: 1px solid var(--secondary-background-color);
     }
     .credit-link {
         color: #1DB954; 
@@ -72,7 +73,7 @@ st.markdown(
         font-weight: bold;
     }
     .credit-text {
-        color: #AAAAAA;
+        color: var(--text-color);
         margin: 0 10px;
     }
 
@@ -174,7 +175,7 @@ def main():
             
             card_html = f"""
             <div style="
-                background-color: #383838; 
+                background-color: var(--secondary-background-color);
                 padding: 15px; 
                 border-radius: 12px; 
                 margin-bottom: 15px;
