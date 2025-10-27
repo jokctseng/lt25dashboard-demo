@@ -27,7 +27,6 @@ st.markdown(
     /* 輸入框、選單及數據框 */
     .stSelectbox, .stTextInput, .stTextArea, .stExpander, [data-testid="stDataFrame"], .stTabs {
         border-radius: 12px;
-        background-color: #282828; 
         padding: 10px;
     }
 
