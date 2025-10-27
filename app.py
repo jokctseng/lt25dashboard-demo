@@ -56,7 +56,7 @@ st.markdown(
         color: var(--text-color); 
         padding: 8px 10px;
         font-size: 0.75rem;
-        z-index: 10;
+        z-index: 1000;
         border-top: 1px solid var(--secondary-background-color);
         display: flex;
         justify-content: center;
