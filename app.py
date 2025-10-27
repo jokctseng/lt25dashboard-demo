@@ -51,23 +51,27 @@ st.markdown(
         position: fixed;
         left: 0;
         bottom: 0;
-        width: 80%;
+        width: 100%;
         background-color: var(--secondary-background-color); 
         color: var(--text-color); 
-        text-align: center;
-        padding: 8px 0;
+        padding: 8px 10px;
         font-size: 0.75rem;
         z-index: 10;
         border-top: 1px solid var(--secondary-background-color);
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;    
     }
     .credit-link {
         color: #1DB954; 
+        display: inline-block;
         text-decoration: none;
         margin: 0 5px;
         font-weight: bold;
     }
     .credit-text {
         color: var(--text-color);
+        display: inline-block;
         margin: 0 10px;
     }
 
