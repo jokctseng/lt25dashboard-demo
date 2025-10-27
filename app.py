@@ -39,12 +39,7 @@ st.markdown(
         padding-right: 2rem;
     }
     
-    /* 側邊欄 */
-    [data-testid="stSidebar"] {
-        background-color: #191414; 
-        border-right: 3px solid #1DB954; 
-        color: var(--text-color);
-    }
+   
 
     /* 標題層次 */
     h1, h2, h3, h4 {
@@ -57,7 +52,7 @@ st.markdown(
         position: fixed;
         left: 0;
         bottom: 0;
-        width: 100%;
+        width: 80%;
         background-color: var(--secondary-background-color); 
         color: var(--text-color); 
         text-align: center;
