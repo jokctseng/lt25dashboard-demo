@@ -176,7 +176,7 @@ def main():
                 box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
             ">
                 <h3 style="color: #1DB954; margin-top: 0; margin-bottom: 5px;">{item['icon']} {item['title']}</h3>
-                <p style="color: #DDDDDD; font-size: 14px;">{item['desc']}</p>
+                <p style="font-size: 14px;">{item['desc']}</p>
             </div>
             """
             col.markdown(card_html, unsafe_allow_html=True)
