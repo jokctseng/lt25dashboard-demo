@@ -221,7 +221,7 @@ reference_links = [
         "help": "使用Gemini輔助思考洞見深化與資訊對齊方向"
     },
     {
-        "label": "💬 其他補充內容",
+        "label": "💬 其他補充內容（目前暫無更新）",
         "url": "https://docs.google.com/document/d/1H0RU-Glp-s3gJJcFZadaOeUe4rieOUiThFr-jl8ewuI/edit?usp=sharing",
         "help": "其他即時更新之補充內容彙整"
     }
